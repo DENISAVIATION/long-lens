@@ -1,0 +1,1966 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#121416">
+<meta property="og:title" content="Long Lens">
+<meta property="og:description" content="A plane-spotting quiz. One detail, then the lens pulls back. Name the aircraft before the zoom runs out.">
+<link rel="apple-touch-icon" href="icon-180.png">
+<script>
+window.__ll={}; window.__ll.ready=new Promise(r=>{ window.__ll.resolve=r; });
+window.claude={ use: name => window.__ll.ready.then(api=>api[name]) };
+// If Firebase can't load (offline, blocked), the game still runs without online features.
+setTimeout(()=>window.__ll.resolve({db:null,user:null,assets:null}),12000);
+</script>
+<script type="module" src="firebase-shim.js"></script>
+<title>Long Lens</title>
+</head>
+<body>
+
+<meta name="description" content="Long Lens: a plane-spotting quiz. One detail, then the lens pulls back. Name the aircraft before the zoom runs out.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 120'%3E%3Crect width='120' height='120' rx='24' fill='%23f5c000'/%3E%3Ccircle cx='60' cy='60' r='40' fill='none' stroke='%23121416' stroke-width='12'/%3E%3Cpath transform='translate(60 60) rotate(45) scale(1.2)' fill='%23121416' d='M0,-19 C2,-19 3,-16 3,-12 L3,-4 L19,4 L19,7.5 L3,3.5 L3,11 L8.5,15 L8.5,17.5 L0,15.5 L-8.5,17.5 L-8.5,15 L-3,11 L-3,3.5 L-19,7.5 L-19,4 L-3,-4 L-3,-12 C-3,-16 -2,-19 0,-19 Z'/%3E%3C/svg%3E">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one centred column. Header, then a telephoto viewfinder, then the panel for the current step (start, answers, results, logbook). Airfield signage (black location signs, yellow direction signs) sets the controls. */
+:root{
+  --bg:#e3e9ec; --surface:#f4f7f8; --ink:#14212c; --muted:#53636f; --line:#c2ced5;
+  --sign:#121416; --sign-ink:#f5c000; --sign-dim:#c9a64a;
+  --good:#23824f; --bad:#bd3b34; --timer:#d9a300;
+  --sky-top:#97b9d2; --sky-bot:#e4ecef; --apron:#9aa1a6; --apron-edge:#7a8287; --paint:#e2b400;
+  --f-display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --f-body:"Atkinson Hyperlegible","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e141a; --surface:#161f27; --ink:#e4ebef; --muted:#93a3ae; --line:#283541;
+    --sign:#07090b; --sign-ink:#f5c000; --sign-dim:#b8973f;
+    --good:#3aa96c; --bad:#e0605a; --timer:#f5c000;
+    --sky-top:#0a1622; --sky-bot:#405266; --apron:#2a3035; --apron-edge:#3b4349; --paint:#b38f00;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e141a; --surface:#161f27; --ink:#e4ebef; --muted:#93a3ae; --line:#283541;
+  --sign:#07090b; --sign-ink:#f5c000; --sign-dim:#b8973f;
+  --good:#3aa96c; --bad:#e0605a; --timer:#f5c000;
+  --sky-top:#0a1622; --sky-bot:#405266; --apron:#2a3035; --apron-edge:#3b4349; --paint:#b38f00;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+.wrap{max-width:980px;margin:0 auto;padding-block:18px 40px;display:flex;flex-direction:column;gap:18px}
+.visually-hidden{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* header */
+.appbar{display:flex;align-items:center;gap:6px 14px;flex-wrap:wrap;background:var(--sign);border-radius:10px;padding:8px 10px}
+.brand{display:inline-flex;align-items:center;gap:9px;padding:2px 4px 2px 2px}
+.brandmark{display:block;flex:none}
+.wordmark{font-family:var(--f-display);font-weight:800;font-size:25px;line-height:1;letter-spacing:.04em;color:var(--sign-ink);white-space:nowrap;padding-top:2px}
+.quitbtn{margin-left:auto;font:500 12px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:none;border:1.5px solid var(--line);border-radius:4px;padding:6px 9px;cursor:pointer}
+.quitbtn:hover{color:var(--ink);border-color:var(--ink)}
+.tabs{display:flex;gap:2px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{font:700 14px/1 var(--f-body);color:#dfe5e9;background:transparent;border:0;border-radius:6px;padding:10px 12px;cursor:pointer;white-space:nowrap}
+.tab:hover{background:rgba(255,255,255,.09);color:#fff}
+.tab[aria-current="page"]{background:var(--sign-ink);color:var(--sign)}
+.appbar .who{margin-left:auto;background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.16);color:#c3ccd2}
+.appbar .who .whoedit{color:var(--sign-ink)}
+@media (max-width:700px){
+  .appbar .who{order:2}
+  .tabs{order:3;flex-basis:100%;margin:2px -4px 0}
+  .appbar .who #whoName{max-width:42vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
+@media (max-width:440px){
+  .tab{font-size:13px;padding:10px 8px}
+  .tabs{justify-content:space-between}
+  .diffs:not(.games) .diff .dname{font-size:18px;overflow-wrap:anywhere}
+  .diff .card{padding-right:24px}
+}
+@media (hover:none){ .keyhint{display:none} }
+.ghost{font:700 14px/1 var(--f-body);color:var(--ink);background:var(--surface);border:1.5px solid var(--line);
+  border-radius:6px;padding:9px 14px;cursor:pointer}
+.ghost:hover{border-color:var(--ink)}
+.who{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:4px 10px 4px 4px;border:1.5px solid var(--line);border-radius:20px;background:var(--surface)}
+.nickcard{background:var(--surface);border:1.5px solid var(--sign-ink);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:6px}
+.nickcard .row{align-items:flex-end}
+.who .whoedit{color:var(--ink);font-size:12px;padding:2px 0}
+.who img{width:24px;height:24px;border-radius:50%;display:block}
+.who.out{padding-left:10px}
+.who.out img{display:none}
+button:focus-visible,.diff input:focus-visible + .card{outline:3px solid var(--timer);outline-offset:2px}
+
+/* stage */
+.stage{display:flex;flex-direction:column;gap:8px}
+.hud{display:flex;gap:20px;flex-wrap:wrap;font:400 13px/1.2 var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.hud b{font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums;font-size:15px}
+.hud .streak b{color:var(--good)}
+.hud .worth b{color:var(--ink);background:var(--sign-ink);color:var(--sign);padding:1px 6px;border-radius:2px}
+.timer{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.timer i{display:block;height:100%;width:100%;background:var(--timer);transform-origin:left center}
+.timer i.low{background:var(--bad)}
+.viewfinder{position:relative;aspect-ratio:2/1;max-width:100%;border-radius:10px;overflow:hidden;background:#000;box-shadow:0 0 0 1px var(--line),0 18px 40px -22px rgba(10,20,30,.55)}
+.viewfinder canvas{display:block;width:100%;height:100%}
+@media (max-width:600px){.viewfinder{aspect-ratio:3/2}}
+
+/* panels */
+.panel{display:flex;flex-direction:column;gap:16px}
+h1{font-family:var(--f-display);font-weight:800;font-size:clamp(32px,5.4vw,48px);line-height:.98;margin:0;text-transform:uppercase;letter-spacing:.01em;text-wrap:balance}
+h2{font-family:var(--f-display);font-weight:800;font-size:30px;line-height:1;margin:0;text-transform:uppercase;text-wrap:balance}
+.lede{margin:0;max-width:62ch}
+.eyebrow{font:500 12px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:0}
+
+.diffs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;border:0;padding:0;margin:0}
+.diffs legend{margin-bottom:8px}
+.games{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:860px){.games{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.dmeta .short{display:none}
+@media (max-width:640px){
+  .games{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .diffs:not(.games){grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .diff .card{padding:11px 28px 11px 11px}
+  .diff .dname{font-size:21px}
+  .diff input:checked + .card::after{top:10px;right:9px;width:14px;height:14px;box-shadow:inset 0 0 0 4px var(--sign)}
+  .diffs:not(.games) .dmeta .long{display:none}
+  .diffs:not(.games) .dmeta .short{display:inline}
+  .games .dmeta{font-size:13px}
+}
+.choices.n16,.choices.n17,.choices.n18{grid-template-columns:repeat(4,minmax(0,1fr))}
+.choices.n10{grid-template-columns:repeat(4,minmax(0,1fr))}
+.stopwrap{display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.stopbtn{font-size:28px;padding:14px 26px 12px}
+.diff{display:block;cursor:pointer}
+.diff input{position:absolute;opacity:0;width:1px;height:1px}
+.diff .card{position:relative;display:grid;align-content:start;gap:4px;background:var(--surface);color:var(--ink);border:1.5px solid var(--line);border-radius:6px;padding:13px 40px 13px 14px;height:100%;transition:border-color .12s,background .12s}
+.diff:hover .card{border-color:var(--ink)}
+.diff input:checked + .card::after{content:'';position:absolute;top:12px;right:12px;width:18px;height:18px;border-radius:50%;background:var(--sign-ink);box-shadow:inset 0 0 0 5px var(--sign)}
+.diff .dname{font:800 26px/1 var(--f-display);text-transform:uppercase;letter-spacing:.04em}
+.diff .dmeta{font-size:14px;color:var(--muted);line-height:1.4}
+.diff .dbest{font:400 12px/1.2 var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:6px}
+.diff input:checked + .card{background:var(--sign);color:var(--sign-ink);border-color:var(--sign);box-shadow:inset 0 0 0 2px var(--sign),inset 0 0 0 4px var(--sign-ink)}
+.diff input:checked + .card .dmeta,.diff input:checked + .card .dbest{color:#d9dde0}
+
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.hero{display:flex;flex-direction:column;gap:10px}
+.hero h1 .hl{display:block;color:var(--muted)}
+.scale{display:grid;gap:8px;background:var(--sign);border-radius:10px;padding:14px 16px 12px;color:#fff}
+.scale-title{font:500 12px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.1em;color:var(--sign-ink)}
+.barrel{position:relative;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));padding-top:14px;
+  background:repeating-linear-gradient(90deg,rgba(255,255,255,.35) 0 1px,transparent 1px calc(100%/30)) top left/100% 8px no-repeat}
+.barrel::before{content:'';position:absolute;left:0;right:0;top:0;height:2px;background:rgba(255,255,255,.18)}
+.barrel .mark{display:flex;flex-direction:column;gap:3px;border-left:2px solid rgba(255,255,255,.75);padding:0 0 2px 8px;margin-top:-14px;padding-top:14px}
+.barrel .mark b{font:800 26px/1 var(--f-display);letter-spacing:.02em}
+.barrel .mark i{font:500 13px/1 var(--f-mono);font-style:normal;color:var(--sign-ink)}
+.barrel .mark i::after{content:' pts';color:#9aa6ae}
+.scale-foot{font-size:13px;color:#aab4bb}
+@media (max-width:480px){.barrel .mark b{font-size:20px}.barrel .mark i::after{content:''}}
+.daily{display:flex;gap:14px 20px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--surface);border:2px solid var(--sign);border-radius:10px;padding:16px 18px;box-shadow:inset 6px 0 0 var(--sign-ink)}
+.dailytxt{display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 300px}
+.dailyeb{color:var(--ink)}
+.dailyt{font:800 26px/1.05 var(--f-display);text-transform:uppercase;margin:0;text-wrap:balance}
+.dailynote{font-size:14px;color:var(--muted);margin:0}
+.sharebox{display:flex;gap:12px;align-items:center;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.sharebox pre{margin:0;font:500 14px/1.5 var(--f-mono);white-space:pre-wrap;flex:1 1 240px;min-width:0;user-select:all}
+.startbar{display:flex;gap:14px 20px;flex-wrap:wrap;align-items:center;padding-top:4px}
+.startnotes{display:flex;flex-direction:column;gap:2px}
+.cta.big{font-size:28px;padding:14px 26px 12px}
+.startsel{font:700 14px/1 var(--f-body);text-transform:none;letter-spacing:0;background:var(--sign);color:var(--sign-ink);padding:6px 9px;border-radius:3px}
+.cta{font:800 24px/1 var(--f-display);text-transform:uppercase;letter-spacing:.05em;background:var(--sign-ink);color:var(--sign);
+  border:3px solid var(--sign);border-radius:3px;padding:11px 20px 9px;cursor:pointer;display:inline-flex;gap:12px;align-items:center}
+.cta:hover{filter:brightness(1.06)}
+.cta[disabled]{opacity:.45;cursor:not-allowed;filter:none}
+.cta.small{font-size:20px;padding:9px 16px 7px}
+.cta .arrow{font-family:var(--f-body);font-weight:700}
+.note{color:var(--muted);font-size:14px;margin:0}
+.myshots{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.shot{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.shot img{display:block;width:100%;aspect-ratio:2/1;object-fit:cover;max-width:100%;border-bottom:1px solid var(--line)}
+.shot .lbody{gap:4px}
+
+/* answers */
+.choices{display:grid;gap:8px}
+.choices.n4,.choices.n8{grid-template-columns:repeat(4,minmax(0,1fr))}
+.choices.n6{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:720px){.choices.n4,.choices.n6,.choices.n8,.choices.n16,.choices.n17,.choices.n18,.choices.n10{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.choice{display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center;text-align:left;
+  background:var(--sign);color:var(--sign-ink);border:2px solid var(--sign);border-radius:4px;padding:10px 12px;cursor:pointer;min-width:0}
+.choice:hover:not([disabled]){border-color:var(--sign-ink)}
+.choice .k{grid-row:span 2;font:500 12px/1 var(--f-mono);width:22px;height:22px;display:grid;place-items:center;border:1px solid var(--sign-dim);border-radius:3px;color:var(--sign-dim)}
+.choice .nm{font:800 22px/1.05 var(--f-display);text-transform:uppercase;letter-spacing:.03em;overflow-wrap:anywhere}
+.choice .mk{font-size:12px;color:var(--sign-dim)}
+.choice[disabled]{cursor:default}
+.choice.dim{opacity:.4}
+.choice.right{background:var(--good);border-color:var(--good);color:#fff}
+.choice.wrong{background:var(--bad);border-color:var(--bad);color:#fff}
+.choice.right .k,.choice.right .mk,.choice.wrong .k,.choice.wrong .mk{color:#fff;border-color:rgba(255,255,255,.7)}
+
+.result{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 24px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px 18px}
+@media (max-width:600px){.result{grid-template-columns:1fr}}
+.rv{font:500 12px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.1em}
+.rv.ok{color:var(--good)} .rv.no{color:var(--bad)}
+.rname{font:800 30px/1.05 var(--f-display);text-transform:uppercase;margin:6px 0 0;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.icao{font:500 13px/1 var(--f-mono);border:1px solid var(--line);border-radius:3px;padding:4px 6px;color:var(--muted);letter-spacing:.06em}
+.rmeta{margin:4px 0 0;color:var(--muted);font-size:14px}
+.rtip{margin:8px 0 0;max-width:62ch}
+.rside{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+@media (max-width:600px){.rside{align-items:flex-start}}
+.rpts{font:800 40px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.rtime{font:400 13px/1.2 var(--f-mono);color:var(--muted)}
+
+/* end */
+.bigscore{font:800 clamp(56px,10vw,84px)/.9 var(--f-display);font-variant-numeric:tabular-nums;margin:0}
+.pb{display:inline-block;font:500 12px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.1em;background:var(--sign-ink);color:var(--sign);padding:5px 8px;border-radius:2px;vertical-align:middle}
+.stats{display:flex;gap:28px;flex-wrap:wrap}
+.stat .l{font:500 12px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.stat .v{font:800 30px/1.1 var(--f-display);font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:520px;font-size:14px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid var(--line)}
+th{font:500 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+tr:last-child td{border-bottom:0}
+td.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;text-align:right}
+th.num{text-align:right}
+.mark{font-family:var(--f-mono);font-weight:500}
+.mark.ok{color:var(--good)} .mark.no{color:var(--bad)}
+
+/* logbook */
+.logfams{display:flex;flex-direction:column;gap:26px}
+.famhead{font:800 24px/1 var(--f-display);text-transform:uppercase;margin:0 0 10px;display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.famtip{margin:-2px 0 12px;max-width:72ch;font-size:15px}
+.wallform{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:18px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px}
+@media (max-width:760px){.wallform{grid-template-columns:1fr}}
+.wf-pic{display:flex;flex-direction:column;gap:10px;min-width:0}
+.drop{display:grid;place-items:center;min-height:200px;border:2px dashed var(--line);border-radius:6px;cursor:pointer;background:var(--bg);overflow:hidden;text-align:center;padding:12px}
+.drop:hover,.drop:focus-within{border-color:var(--ink)}
+.drop canvas{max-width:100%;max-height:340px;width:auto;height:auto;display:block}
+.drop-txt{color:var(--muted);font-size:14px}
+.wf-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;align-content:start}
+@media (max-width:480px){.wf-fields{grid-template-columns:1fr}}
+.wf-fields .wide{grid-column:1/-1}
+.fld{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+.fld i{font-style:normal;opacity:.8}
+.fld input,.fld select,.fld textarea{font:15px/1.3 var(--f-body);color:var(--ink);background:var(--bg);border:1.5px solid var(--line);border-radius:5px;padding:8px 10px;width:100%}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:2px solid var(--timer);outline-offset:1px}
+.combo{position:relative}
+.combo label{font-size:13px;color:var(--muted)}
+.aplist{position:absolute;left:0;right:0;top:100%;z-index:20;margin:4px 0 0;padding:4px;list-style:none;background:var(--surface);border:1.5px solid var(--ink);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.18);max-height:300px;overflow-y:auto}
+.aplist li{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;padding:7px 8px;border-radius:4px;cursor:pointer;color:var(--ink)}
+.aplist li[aria-selected="true"],.aplist li:hover{background:var(--bg)}
+.aplist .code{grid-row:span 2;font:800 18px/1 var(--f-display);background:var(--sign);color:var(--sign-ink);padding:5px 6px 4px;border-radius:2px;align-self:center;min-width:46px;text-align:center}
+.aplist .apn{font-size:14px;font-weight:700}
+.aplist .apm{font:400 11px/1.2 var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.aplist mark{background:color-mix(in srgb,var(--sign-ink) 45%,transparent);color:inherit;border-radius:2px}
+.aplist .code.fam{background:var(--sign-ink);color:var(--sign)}
+.aplist .code.hint{background:var(--bg);color:var(--ink);border:1px solid var(--line)}
+.aplist .none{display:block;color:var(--muted);font-size:13px;cursor:default}
+.photoown{display:flex;gap:8px;align-items:center;font-size:14px}
+.photoown input{width:18px;height:18px;accent-color:var(--sign)}
+.wallbar{justify-content:space-between}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{font:500 12px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.05em;padding:7px 10px;border-radius:20px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--sign);color:var(--sign-ink);border-color:var(--sign)}
+.board td.you{font-weight:700}
+.board tr.me td{background:color-mix(in srgb,var(--sign-ink) 18%,transparent)}
+.board .medal{font:800 18px/1 var(--f-display)}
+#boardGames,#boardLevels{margin-top:-4px}
+.shotpic{position:relative}
+.shotpic img{cursor:default}
+.shot.picking .shotpic img{cursor:crosshair;outline:3px solid var(--timer);outline-offset:-3px}
+.spot{position:absolute;width:22px;height:22px;margin:-11px 0 0 -11px;border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 2px rgba(0,0,0,.55);pointer-events:none}
+.ingame{position:absolute;top:8px;left:8px;font:500 11px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.06em;background:var(--sign-ink);color:var(--sign);padding:5px 7px;border-radius:2px;z-index:1}
+.picknote{font-size:14px;margin:0 0 6px;color:var(--ink)}
+.acceptbtn{align-self:flex-start;margin-top:4px}
+.shot .famchip{font:800 18px/1 var(--f-display);text-transform:uppercase;background:var(--sign);color:var(--sign-ink);padding:4px 7px 3px;border-radius:2px}
+.shot .cap{font-size:14px;margin:2px 0 0}
+.shot .by{font:400 12px/1.3 var(--f-mono);color:var(--muted);margin:0;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.linkbtn{font:500 12px/1 var(--f-mono);color:var(--bad);background:none;border:0;padding:4px 0;cursor:pointer;text-decoration:underline}
+.famvars{margin:-6px 0 12px;font:400 12px/1.4 var(--f-mono);color:var(--muted)}
+.famcount{font:400 12px/1 var(--f-mono);color:var(--muted);letter-spacing:.06em}
+.loggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.logcard{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;min-width:0}
+.logcard canvas{display:block;width:100%;aspect-ratio:2/1;max-width:100%;border-bottom:1px solid var(--line)}
+.lbody{padding:12px 14px 14px;display:flex;flex-direction:column;gap:6px;flex:1}
+.lname{font:800 22px/1.05 var(--f-display);text-transform:uppercase;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin:0}
+.lmeta{font:400 12px/1.3 var(--f-mono);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:0}
+.ltip{font-size:14px;margin:0;flex:1}
+.lrec{font:400 12px/1.3 var(--f-mono);color:var(--muted);margin:0;padding-top:8px;border-top:1px dashed var(--line)}
+.lrec.has{color:var(--ink)}
+
+footer{color:var(--muted);font-size:12px;line-height:1.5;border-top:1px solid var(--line);padding-top:14px;max-width:80ch}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="appbar">
+    <span class="brand" aria-label="Long Lens"><svg class="brandmark" viewBox="0 0 120 120" width="34" height="34" aria-hidden="true"><rect width="120" height="120" rx="28" fill="#f5c000"/><circle cx="60" cy="60" r="38" fill="none" stroke="#121416" stroke-width="8"/><g stroke="#121416" stroke-width="5" stroke-linecap="round"><line x1="60" y1="27" x2="60" y2="34"/><line x1="60" y1="86" x2="60" y2="93"/><line x1="27" y1="60" x2="34" y2="60"/><line x1="86" y1="60" x2="93" y2="60"/></g><path transform="translate(60 60) rotate(45) scale(1.02)" fill="#121416" d="M0,-19 C2,-19 3,-16 3,-12 L3,-4 L19,4 L19,7.5 L3,3.5 L3,11 L8.5,15 L8.5,17.5 L0,15.5 L-8.5,17.5 L-8.5,15 L-3,11 L-3,3.5 L-19,7.5 L-19,4 L-3,-4 L-3,-12 C-3,-16 -2,-19 0,-19 Z"/></svg><span class="wordmark">LONG LENS</span></span>
+    <nav class="tabs" aria-label="Sections">
+      <button type="button" class="tab" id="playTab" aria-current="page">Play</button>
+      <button type="button" class="tab" id="boardBtn">Leaderboard</button>
+      <button type="button" class="tab" id="wallBtn">Spotters’ Wall</button>
+      <button type="button" class="tab" id="logBtn">Logbook</button>
+    </nav>
+    <span class="who" id="who" hidden><img id="whoPic" alt=""><span id="whoName"></span><button type="button" class="linkbtn whoedit" id="whoEdit" hidden>Edit</button><button type="button" class="linkbtn whoedit" id="authBtn" hidden>Sign in with Google</button></span>
+  </header>
+
+  <section class="nickcard" id="nickCard" hidden>
+    <form id="nickForm" class="row" novalidate>
+      <label class="fld" for="nickInput" style="flex:1;min-width:220px"><span id="nickLabel">Pick your spotter nickname. It shows on the leaderboard and on your wall photos.</span>
+        <input id="nickInput" maxlength="20" autocomplete="nickname" placeholder="e.g. RunwayRaven"></label>
+      <button type="submit" class="cta small" id="nickSave">Save nickname</button>
+      <button type="button" class="ghost" id="nickSkip">Not now</button>
+    </form>
+    <p class="note" id="nickMsg" role="status"></p>
+  </section>
+
+  <section class="stage" id="stage" aria-label="Viewfinder">
+    <div class="hud" id="hud" hidden>
+      <span>Frame <b id="hRound">1/8</b></span>
+      <span>Score <b id="hScore">0</b></span>
+      <span class="streak" id="hStreakWrap">Streak <b id="hStreak">0</b></span>
+      <span class="worth">Worth now <b id="hWorth">—</b></span>
+      <button type="button" class="quitbtn" id="quitBtn">Quit roll</button>
+    </div>
+    <div class="timer" id="timer" hidden><i id="timerBar"></i></div>
+    <div class="viewfinder" id="vf">
+      <canvas id="cv" role="img" aria-label="Telephoto view of an airliner"></canvas>
+    </div>
+  </section>
+
+  <section class="panel" id="startPanel">
+    <div class="hero">
+      <p class="eyebrow" id="typeCount">Aircraft types · 8 frames per roll</p>
+      <h1>One detail. <span class="hl">Which aircraft is it?</span></h1>
+      <p class="lede">The lens locks onto a nose, tail, engine, wingtip or landing gear, then pulls back. Name the aircraft family before the whole plane is in frame. Any variant counts: a 777-300ER is a 777.</p>
+    </div>
+    <div class="scale" role="img" aria-label="Points by zoom when you answer: times 1 is 0 points, times 2 is 100, times 3 is 200, times 4 is 300, times 5 is 400, times 6 is 500">
+      <span class="scale-title">Points by zoom when you answer</span>
+      <div class="barrel" aria-hidden="true">
+        <span class="mark"><b>×1</b><i>0</i></span><span class="mark"><b>×2</b><i>100</i></span><span class="mark"><b>×3</b><i>200</i></span><span class="mark"><b>×4</b><i>300</i></span><span class="mark"><b>×5</b><i>400</i></span><span class="mark"><b>×6</b><i>500</i></span>
+      </div>
+      <span class="scale-foot">Every extra ×1 of zoom is worth 100 more. Level and streak bonuses add on top.</span>
+    </div>
+    <section class="daily" aria-labelledby="dailyTitle">
+      <div class="dailytxt">
+        <p class="eyebrow dailyeb">Daily 5 · <span id="dailyDate"></span></p>
+        <p class="dailyt" id="dailyTitle">The same 5 frames for every spotter today</p>
+        <p class="dailynote" id="dailyNote">Spotter level, 6 choices. Only your first try counts. New frames at midnight Japan time.</p>
+      </div>
+      <button type="button" class="cta" id="dailyBtn">Play today’s 5 <span class="arrow">→</span></button>
+    </section>
+    <fieldset class="diffs games">
+      <legend class="eyebrow">Choose a game</legend>
+      <label class="diff"><input type="radio" name="game" value="classic" id="g-classic" checked><span class="card"><span class="dname">Long Lens</span><span class="dmeta">Name the aircraft family while the lens pulls back.</span></span></label>
+      <label class="diff"><input type="radio" name="game" value="blind" id="g-blind"><span class="card"><span class="dname">Blind Stop</span><span class="dmeta">No choices on screen. Stop the clock when you know it, then pick from every family. ×1.25</span></span></label>
+      <label class="diff"><input type="radio" name="game" value="airline" id="g-airline"><span class="card"><span class="dname">Tail Spotter</span><span class="dmeta">Name the airline instead of the aircraft.</span></span></label>
+      <label class="diff"><input type="radio" name="game" value="survival" id="g-survival"><span class="card"><span class="dname">Sudden Death</span><span class="dmeta">Endless frames. One miss or timeout ends the run.</span></span></label>
+    </fieldset>
+    <fieldset class="diffs">
+      <legend class="eyebrow">Choose your level</legend>
+      <label class="diff"><input type="radio" name="diff" value="rookie" id="d-rookie" checked><span class="card"><span class="dname">Rookie</span><span class="dmeta"><span class="long">4 choices · lens pulls all the way back · ×1</span><span class="short">4 choices · ×1</span></span><span class="dbest" id="best-rookie">Best —</span></span></label>
+      <label class="diff"><input type="radio" name="diff" value="spotter" id="d-spotter"><span class="card"><span class="dname">Spotter</span><span class="dmeta"><span class="long">6 choices, some look-alikes · slower pull-back · ×1.5</span><span class="short">6 choices · ×1.5</span></span><span class="dbest" id="best-spotter">Best —</span></span></label>
+      <label class="diff"><input type="radio" name="diff" value="ace" id="d-ace"><span class="card"><span class="dname">Ace</span><span class="dmeta"><span class="long">8 choices, look-alikes first · the lens barely moves · ×2</span><span class="short">8 look-alikes · ×2</span></span><span class="dbest" id="best-ace">Best —</span></span></label>
+    </fieldset>
+    <div class="startbar">
+      <button type="button" class="cta big" id="startBtn">Start <span class="startsel" id="startSel">Long Lens · Rookie</span> <span class="arrow">→</span></button>
+      <div class="startnotes">
+        <p class="note" id="photoCount">Loading photos…</p>
+        <p class="note keyhint">Keys 1–8 answer. Enter moves on.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel" id="playPanel" hidden>
+    <div class="choices n4" id="choices" role="group" aria-label="Which aircraft is this?"></div>
+    <div class="result" id="result" hidden aria-live="polite"></div>
+  </section>
+
+  <section class="panel" id="endPanel" hidden></section>
+
+  <section class="panel" id="wallPanel" hidden>
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <p class="eyebrow">Spotters’ Wall</p>
+        <h2>Share your catches</h2>
+      </div>
+      <button type="button" class="ghost" id="wallBack">Back to the game</button>
+    </div>
+    <p class="lede">Post planes you photographed. Everyone who opens this page sees the wall. When the owner accepts a photo, it joins the main game for everyone.</p>
+    <p class="note" id="wallStatus">Connecting to the wall…</p>
+
+    <form class="wallform" id="wallForm" hidden novalidate>
+      <div class="wf-pic">
+        <label class="drop" id="drop" for="wfFile">
+          <canvas id="wfCanvas" width="10" height="10" hidden></canvas>
+          <span class="drop-txt" id="dropTxt"><b>Choose a photo</b><br>JPEG, PNG or a Canon/Nikon/Sony RAW file (CR2, CR3, NEF, ARW, DNG)</span>
+        </label>
+        <input type="file" id="wfFile" accept="image/*,.cr2,.cr3,.nef,.arw,.dng,.raf,.orf" class="visually-hidden">
+        <div class="row" style="gap:8px">
+          <button type="button" class="ghost" id="wfRotate" disabled>Rotate 90°</button>
+          <span class="note" id="wfInfo"></span>
+        </div>
+      </div>
+      <div class="wf-fields">
+        <label class="fld"><span>Aircraft family</span><select id="wfFam" required></select></label>
+        <div class="fld combo"><label for="wfVar">Variant <i>(optional)</i></label><input id="wfVar" maxlength="40" placeholder="Type to search, e.g. 300er" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="wfVarList" autocomplete="off"><ul class="aplist" id="wfVarList" role="listbox" hidden></ul></div>
+        <div class="fld combo"><label for="wfAir">Airline</label><input id="wfAir" maxlength="60" placeholder="Type to search, e.g. jal" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="wfAirList" autocomplete="off"><ul class="aplist" id="wfAirList" role="listbox" hidden></ul></div>
+        <div class="fld combo"><label for="wfReg">Registration</label><input id="wfReg" maxlength="16" placeholder="e.g. JA340J" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="wfRegList" autocomplete="off" autocapitalize="characters" spellcheck="false"><ul class="aplist" id="wfRegList" role="listbox" hidden></ul></div>
+        <div class="fld combo"><label for="wfPlace">Airport or place</label><input id="wfPlace" maxlength="60" placeholder="Type to search, e.g. hane" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="wfPlaceList" autocomplete="off"><ul class="aplist" id="wfPlaceList" role="listbox" hidden></ul></div>
+        <label class="fld"><span>Date taken</span><input id="wfDate" type="date"></label>
+        <label class="fld wide"><span>Caption <i>(optional)</i></span><textarea id="wfCap" maxlength="280" rows="2" placeholder="What made this shot?"></textarea></label>
+        <label class="photoown wide"><input type="checkbox" id="wfMine"> <span>I took this photo myself</span></label>
+        <div class="row wide"><button type="submit" class="cta small" id="wfPost" disabled>Post to the wall <span class="arrow">→</span></button><span class="note" id="wfMsg" role="status"></span></div>
+      </div>
+    </form>
+
+    <div class="row wallbar">
+      <div class="chips" id="wallChips" role="group" aria-label="Filter by family"></div>
+      <button type="button" class="cta small" id="wallPlay" hidden>Play these photos <span class="arrow">→</span></button>
+    </div>
+    <div class="myshots" id="wallFeed"></div>
+  </section>
+
+  <section class="panel" id="boardPanel" hidden>
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <p class="eyebrow">Leaderboard</p>
+        <h2>Top spotters</h2>
+      </div>
+      <button type="button" class="ghost" id="boardBack">Back to the game</button>
+    </div>
+    <p class="lede">Every finished roll adds its points to your total, and your best roll counts for each game and level. Players appear under the spotter nickname they pick. Sign in with Google (top right) to be saved here.</p>
+    <div class="chips" id="boardGames" role="group" aria-label="Which board"></div>
+    <div class="chips" id="boardLevels" role="group" aria-label="Level"></div>
+    <p class="note" id="boardStatus">Loading the leaderboard…</p>
+    <div class="tablewrap"><table class="board">
+      <thead><tr><th class="num">#</th><th>Spotter</th><th class="num" id="boardCol">Points</th><th class="num">Rolls</th><th></th></tr></thead>
+      <tbody id="boardRows"></tbody></table></div>
+  </section>
+
+  <section class="panel" id="logPanel" hidden>
+    <div class="row" style="justify-content:space-between">
+      <div>
+        <p class="eyebrow">Spotter’s logbook</p>
+        <h2>Every aircraft in the game</h2>
+      </div>
+      <button type="button" class="ghost" id="logBack">Back</button>
+    </div>
+    <p class="lede">Study the tells before a roll. Every frame in the game is one of these real photos; your record for each photo is kept in this browser.</p>
+    <div class="logfams" id="loggrid"></div>
+  </section>
+
+  <footer>Every frame is a real photograph. Photos marked Owner’s photo were taken by the creator of Long Lens. Shared photos show their photographer’s credit; where it says “Photo: unknown”, the photographer is not known yet. If one of them is yours, post on the Spotters’ Wall or contact the owner and it will be credited or removed. Spotters’ Wall photos are posted by the spotters named on them, who confirm they took them.</footer>
+</div>
+
+<script>
+(() => {
+'use strict';
+const DUR = 20, MAX_ROUNDS = 8;
+let ROUNDS = MAX_ROUNDS;
+const DIFF = {
+  rookie:  {label:'Rookie',  choices:4, mult:1,   hold:0.8, end:12, emax:1,    startK:1},
+  spotter: {label:'Spotter', choices:6, mult:1.5, hold:2.5, end:16, emax:1,    startK:0.8},
+  ace:     {label:'Ace',     choices:8, mult:2,   hold:4,   end:20, emax:0.45, startK:0.7}
+};
+const CAT = {narrow:'Single-aisle twinjet', wide:'Widebody twinjet', quad:'Four-engine widebody', regional:'Regional jet', trijet:'Widebody trijet', regtri:'Regional trijet', prop:'Regional turboprop'};
+const FOCUS_LABEL = {nose:'nose', tail:'tail', engine:'engine', wingtip:'wingtip', gear:'landing gear', middle:'middle of the frame', detail:'detail picked when the photo was accepted'};
+const FOCI = ['nose','tail','engine','wingtip','gear'];
+
+// Dimensions in metres (approximate). Fractions are of length L unless noted; nose/tail lengths are in fuselage diameters.
+const MODELS = [
+ {id:'a20n', name:'Airbus A320neo', short:'A320neo', maker:'Airbus', icao:'A20N', cat:'narrow',
+  L:37.57, D:3.95, gearH:1.35, height:11.76, nose:{len:1.5,style:'round',drop:0.12}, cockpit:'airbus',
+  tail:{len:2.7,style:'cone'}, fin:{rc:5.6,tc:2.0,sw:4.4,fillet:0.35}, hs:{c:3.0,sw:3.9,rise:0.55},
+  wing:{x:0.34,c:6.1,ct:1.5,so:9.0,rise:1.5,tip:'sharklet',tipH:2.4}, eng:[{f:0.33,d:2.25,len:4.5,fwd:0.62}],
+  gear:{axles:1,r:0.62}, ng:{x:0.135,r:0.37}, win:{pitch:0.53,w:0.24}, doors:[0.115,0.89],
+  tip:'Big round engine fans hung close to the ground, smoothly curved sharklets on the wingtips, and a pointed cone at the tail.'},
+ {id:'b38m', name:'Boeing 737 MAX 8', short:'737 MAX 8', maker:'Boeing', icao:'B38M', cat:'narrow',
+  L:39.52, D:3.76, gearH:0.95, height:12.3, nose:{len:1.55,style:'round',drop:0.16}, cockpit:'boeing',
+  tail:{len:2.9,style:'beaver'}, fin:{rc:6.2,tc:1.9,sw:5.2,fillet:1.1}, hs:{c:3.0,sw:3.9,rise:0.5},
+  wing:{x:0.37,c:5.0,ct:1.3,so:7.8,rise:1.6,tip:'scimitar',tipH:2.0}, eng:[{f:0.3,d:2.05,len:3.9,fwd:0.85,chev:true}],
+  gear:{axles:1,r:0.56}, ng:{x:0.1,r:0.35}, win:{pitch:0.51,w:0.23}, doors:[0.1,0.9],
+  tip:'Winglets that split to point both up and down, saw-tooth edges on the engine exhaust, short legs, and a flat-ended tail cone.'},
+ {id:'b738', name:'Boeing 737-800', short:'737-800', maker:'Boeing', icao:'B738', cat:'narrow',
+  L:39.47, D:3.76, gearH:0.95, height:12.55, nose:{len:1.55,style:'round',drop:0.16}, cockpit:'boeing',
+  tail:{len:2.9,style:'beaver'}, fin:{rc:6.2,tc:1.9,sw:5.2,fillet:1.1}, hs:{c:3.0,sw:3.9,rise:0.5},
+  wing:{x:0.37,c:5.0,ct:1.3,so:7.8,rise:1.6,tip:'blended',tipH:2.4}, eng:[{f:0.3,d:1.95,len:3.6,fwd:0.8}],
+  gear:{axles:1,r:0.56}, ng:{x:0.1,r:0.35}, win:{pitch:0.51,w:0.23}, doors:[0.1,0.9],
+  tip:'Tall blended winglets with a single upward blade, smooth engine exhausts with no saw-teeth, short legs and a flat-ended tail cone. Next to a 737 MAX, the winglet and the exhaust edge are the giveaways.'},
+ {id:'b789', name:'Boeing 787-9', short:'787-9', maker:'Boeing', icao:'B789', cat:'wide',
+  L:62.8, D:5.77, gearH:1.9, height:17.0, nose:{len:2.1,style:'pointed',drop:0.14}, cockpit:'b787',
+  tail:{len:2.6,style:'pointed'}, fin:{rc:9.0,tc:3.0,sw:6.8,fillet:0.25}, hs:{c:4.6,sw:6.6,rise:0.9},
+  wing:{x:0.36,c:9.5,ct:1.9,so:15,rise:3.0,tip:'raked',tipH:0}, eng:[{f:0.3,d:3.35,len:6.4,fwd:0.55,chev:true}],
+  gear:{axles:2,r:0.66}, ng:{x:0.11,r:0.48}, win:{pitch:0.96,w:0.34}, doors:[0.08,0.3,0.62,0.9],
+  tip:'A smooth, sloping nose with a four-pane cockpit, wingtips that sweep back with no winglet, saw-tooth engine exhausts and widely spaced, large cabin windows.'},
+ {id:'a359', name:'Airbus A350-900', short:'A350-900', maker:'Airbus', icao:'A359', cat:'wide',
+  L:66.8, D:5.96, gearH:2.0, height:17.05, nose:{len:1.9,style:'round',drop:0.12}, cockpit:'mask',
+  tail:{len:2.6,style:'cone'}, fin:{rc:9.5,tc:3.4,sw:7.2,fillet:0.3}, hs:{c:5.0,sw:7.0,rise:0.9},
+  wing:{x:0.37,c:11,ct:2.2,so:15.5,rise:2.8,tip:'curl',tipH:3.0}, eng:[{f:0.29,d:3.5,len:6.8,fwd:0.55}],
+  gear:{axles:2,r:0.7}, ng:{x:0.1,r:0.5}, win:{pitch:0.64,w:0.28}, doors:[0.08,0.31,0.63,0.9],
+  tip:'Black paint wraps around the cockpit windows like a mask, and the wingtips curl gently upward.'},
+ {id:'b77w', name:'Boeing 777-300ER', short:'777-300ER', maker:'Boeing', icao:'B77W', cat:'wide',
+  L:73.9, D:6.2, gearH:2.1, height:18.5, nose:{len:1.85,style:'round',drop:0.13}, cockpit:'boeing',
+  tail:{len:2.5,style:'blade'}, fin:{rc:10.5,tc:3.6,sw:8.0,fillet:0.5}, hs:{c:6.0,sw:8.0,rise:1.0},
+  wing:{x:0.37,c:12,ct:2.3,so:17,rise:3.0,tip:'raked',tipH:0}, eng:[{f:0.3,d:4.1,len:7.4,fwd:0.5}],
+  gear:{axles:3,r:0.72}, ng:{x:0.1,r:0.52}, win:{pitch:0.51,w:0.25}, doors:[0.08,0.28,0.5,0.72,0.92],
+  tip:'Huge engines, six wheels in a row on each main gear, a blade-shaped tail cone, raked wingtips and a very long body with five doors per side.'},
+ {id:'b772', name:'Boeing 777-200ER', short:'777-200ER', maker:'Boeing', icao:'B772', cat:'wide',
+  L:63.73, D:6.2, gearH:2.1, height:18.5, nose:{len:1.85,style:'round',drop:0.13}, cockpit:'boeing',
+  tail:{len:2.5,style:'blade'}, fin:{rc:10.5,tc:3.6,sw:8.0,fillet:0.5}, hs:{c:6.0,sw:8.0,rise:1.0},
+  wing:{x:0.36,c:12,ct:2.3,so:16,rise:3.0,tip:'plain',tipH:0}, eng:[{f:0.3,d:3.9,len:7.1,fwd:0.5}],
+  gear:{axles:3,r:0.7}, ng:{x:0.11,r:0.5}, win:{pitch:0.51,w:0.25}, doors:[0.09,0.31,0.62,0.9],
+  tip:'Six-wheel main gear and huge engines like the 777-300ER, but a shorter body with four doors per side and plain wingtips that are not raked back.'},
+ {id:'a333', name:'Airbus A330-300', short:'A330-300', maker:'Airbus', icao:'A333', cat:'wide',
+  L:63.7, D:5.64, gearH:1.9, height:16.8, nose:{len:1.75,style:'round',drop:0.12}, cockpit:'airbus',
+  tail:{len:2.6,style:'cone'}, fin:{rc:9.0,tc:3.2,sw:7.0,fillet:0.3}, hs:{c:4.8,sw:6.5,rise:0.8},
+  wing:{x:0.38,c:10,ct:2.0,so:14,rise:2.8,tip:'blended',tipH:2.7}, eng:[{f:0.3,d:3.1,len:6.0,fwd:0.5}],
+  gear:{axles:2,r:0.66}, ng:{x:0.1,r:0.48}, win:{pitch:0.53,w:0.25}, doors:[0.08,0.3,0.7,0.92],
+  tip:'A long twin-aisle body on just two engines, upturned blended winglets, four-wheel main gear and a classic Airbus cockpit.'},
+ {id:'b744', name:'Boeing 747-400', short:'747-400', maker:'Boeing', icao:'B744', cat:'quad',
+  L:70.7, D:6.5, gearH:2.2, height:19.4, nose:{len:1.9,style:'round',drop:0.2}, hump:{end:0.36,h:1.9}, cockpit:'boeing',
+  tail:{len:2.4,style:'cone'}, fin:{rc:10.5,tc:3.4,sw:8.5,fillet:0.3}, hs:{c:6.0,sw:8.0,rise:1.0},
+  wing:{x:0.36,c:13,ct:2.6,so:18,rise:3.2,tip:'canted',tipH:1.8},
+  eng:[{f:0.27,d:2.8,len:5.6,fwd:0.55},{f:0.62,d:2.8,len:5.3,fwd:0.55}],
+  gear:{axles:2,r:0.62,extra:[{dx:-2.9,axles:2}]}, ng:{x:0.09,r:0.5}, win:{pitch:0.51,w:0.25}, doors:[0.07,0.25,0.48,0.7,0.9],
+  tip:'The hump: the upper deck runs about a third of the way back. Four engines with smooth exhausts and straight, canted winglets.'},
+ {id:'b748', name:'Boeing 747-8', short:'747-8', maker:'Boeing', icao:'B748', cat:'quad',
+  L:76.25, D:6.5, gearH:2.2, height:19.35, nose:{len:1.9,style:'round',drop:0.2}, hump:{end:0.4,h:1.9}, cockpit:'boeing',
+  tail:{len:2.4,style:'cone'}, fin:{rc:10.5,tc:3.4,sw:8.5,fillet:0.3}, hs:{c:6.0,sw:8.0,rise:1.0},
+  wing:{x:0.37,c:13.5,ct:2.4,so:19,rise:3.2,tip:'raked',tipH:0},
+  eng:[{f:0.27,d:3.2,len:6.2,fwd:0.55,chev:true},{f:0.62,d:3.2,len:6.0,fwd:0.55,chev:true}],
+  gear:{axles:2,r:0.62,extra:[{dx:-2.9,axles:2}]}, ng:{x:0.085,r:0.5}, win:{pitch:0.51,w:0.25}, doors:[0.07,0.24,0.46,0.68,0.9],
+  tip:'A 747 with a longer hump, wingtips that sweep back with no winglet, and saw-tooth exhausts on all four engines.'},
+ {id:'a388', name:'Airbus A380-800', short:'A380-800', maker:'Airbus', icao:'A388', cat:'quad',
+  L:72.7, D:7.14, H:8.4, gearH:1.9, height:24.1, nose:{len:1.5,style:'blunt',drop:0.2}, decks:2, cockpit:'airbus', ckDrop:0.3,
+  tail:{len:2.3,style:'cone'}, fin:{rc:14,tc:4.5,sw:10,fillet:0.4}, hs:{c:8,sw:9,rise:1.2},
+  wing:{x:0.35,c:17,ct:4,so:22,rise:3.5,tip:'fence',tipH:1.3},
+  eng:[{f:0.26,d:3.2,len:6.0,fwd:0.5},{f:0.58,d:3.2,len:5.8,fwd:0.5}],
+  gear:{axles:2,r:0.7,extra:[{dx:3.6,axles:3}]}, ng:{x:0.09,r:0.6}, win:{pitch:0.53,w:0.26},
+  doors:[0.08,0.29,0.55,0.78,0.93], upDoors:[0.22,0.6,0.86],
+  tip:'Two full rows of windows from nose to tail, four engines, and small fences poking above and below each wingtip.'},
+ {id:'bcs3', name:'Airbus A220-300', short:'A220-300', maker:'Airbus', icao:'BCS3', cat:'narrow',
+  L:38.7, D:3.7, gearH:1.2, height:11.5, nose:{len:1.55,style:'round',drop:0.13}, cockpit:'big',
+  tail:{len:2.8,style:'cone'}, fin:{rc:5.8,tc:2.0,sw:4.6,fillet:0.4}, hs:{c:3.0,sw:3.8,rise:0.6},
+  wing:{x:0.38,c:6.0,ct:1.5,so:8.0,rise:1.4,tip:'plain',tipH:0}, eng:[{f:0.33,d:2.15,len:4.4,fwd:0.55}],
+  gear:{axles:1,r:0.56}, ng:{x:0.12,r:0.36}, win:{pitch:0.53,w:0.28}, doors:[0.11,0.9],
+  tip:'A short body carrying oversized engines, plain wingtips with no winglet, and unusually large cockpit and cabin windows.'},
+ {id:'e190', name:'Embraer E190', short:'E190', maker:'Embraer', icao:'E190', cat:'regional',
+  L:36.24, D:3.01, gearH:1.05, height:10.55, nose:{len:1.6,style:'round',drop:0.14}, cockpit:'regional',
+  tail:{len:3.0,style:'cone'}, fin:{rc:5.4,tc:1.9,sw:5.0,fillet:0.9}, hs:{c:2.8,sw:3.5,rise:0.5},
+  wing:{x:0.37,c:5.2,ct:1.3,so:7.5,rise:1.3,tip:'small',tipH:1.4}, eng:[{f:0.33,d:1.65,len:3.6,fwd:0.6}],
+  gear:{axles:1,r:0.5}, ng:{x:0.1,r:0.3}, win:{pitch:0.5,w:0.22}, doors:[0.11,0.88],
+  tip:'A slim, compact jet with engines under the wings, small blended winglets, and a long fin fillet running forward along the spine.'},
+ {id:'crj9', name:'Bombardier CRJ900', short:'CRJ900', maker:'Bombardier', icao:'CRJ9', cat:'regional',
+  L:36.2, D:2.69, gearH:0.75, height:7.5, nose:{len:1.95,style:'pointed',drop:0.14}, cockpit:'regional',
+  tail:{len:3.2,style:'cone'}, ttail:true, fin:{rc:4.0,tc:2.6,sw:3.6,fillet:0.3}, hs:{c:2.4,sw:2.6,rise:0.3},
+  wing:{x:0.43,c:4.2,ct:1.2,so:6.5,rise:1.0,tip:'small',tipH:1.0}, eng:[], rear:{x:0.68,d:1.45,len:3.6},
+  gear:{axles:1,r:0.46}, ng:{x:0.08,r:0.3}, win:{pitch:0.5,w:0.2}, doors:[0.1,0.86],
+  tip:'Engines mounted on the rear fuselage, a T-shaped tail, and a skinny tube that sits low to the ground with a long pointed nose.'},
+ {id:'md11', name:'McDonnell Douglas MD-11', short:'MD-11', maker:'McDonnell Douglas', icao:'MD11', cat:'trijet',
+  L:61.6, D:6.02, gearH:2.0, height:17.6, nose:{len:1.8,style:'round',drop:0.13}, cockpit:'boeing',
+  tail:{len:2.2,style:'cone'}, tailEng:{d:2.9,len:6.6}, fin:{rc:8.0,tc:3.6,sw:6.0,fillet:0}, hs:{c:5.5,sw:7,rise:0.8},
+  wing:{x:0.33,c:11,ct:2.4,so:15,rise:2.9,tip:'mdwing',tipH:2.4}, eng:[{f:0.3,d:2.9,len:5.8,fwd:0.5}],
+  gear:{axles:2,r:0.68}, ng:{x:0.08,r:0.5}, win:{pitch:0.51,w:0.24}, doors:[0.08,0.3,0.58,0.88],
+  tip:'A third engine built straight through the base of the fin, and winglets that point both up and down.'},
+ {id:'yk40', name:'Yakovlev Yak-40', short:'Yak-40', maker:'Yakovlev', icao:'YK40', cat:'regtri',
+  L:20.36, D:2.4, gearH:0.75, height:6.5, nose:{len:1.6,style:'blunt',drop:0.08}, cockpit:'regional',
+  tail:{len:3.2,style:'cone',endY:0.18}, ttail:true, tailEng:{d:0.95,len:2.8,end:0.99}, fin:{rc:3.1,tc:2.2,sw:2.7,fillet:0.6,gap:0.04}, hs:{c:2.0,sw:1.6,rise:0.25},
+  wing:{x:0.37,c:3.8,ct:1.6,so:1.4,rise:0.9,tip:'plain',tipH:0}, eng:[], rear:{x:0.7,d:1.1,len:2.6},
+  gear:{axles:1,r:0.5}, ng:{x:0.14,r:0.33}, win:{pitch:0.72,w:0.34,round:true}, doors:[0.2],
+  tip:'Three engines bunched at the tail (two in side pods, one fed from an intake on top), a T-tail, a straight unswept wing and round cabin windows.'},
+ {id:'at76', name:'ATR 72-600', short:'ATR 72-600', maker:'ATR', icao:'AT76', cat:'prop',
+  L:27.17, D:2.57, gearH:0.85, height:7.65, nose:{len:1.8,style:'round',drop:0.18}, cockpit:'regional',
+  tail:{len:4.0,style:'cone',endY:0.3}, ttail:true, fin:{rc:3.6,tc:2.2,sw:2.4,fillet:1.6}, hs:{c:1.8,sw:0.8,rise:0.2},
+  wing:{x:0.40,c:2.57,ct:1.4,so:0.6,rise:0.25,tip:'plain',tipH:0,high:true},
+  eng:[{f:0.3,d:1.0,len:4.6,fwd:0.4,prop:true,pr:1.98}],
+  gear:{axles:1,r:0.44,x:0.47,sponson:true}, ng:{x:0.1,r:0.3}, win:{pitch:0.65,w:0.24}, doors:[0.15,0.83],
+  tip:'Propellers, a wing mounted on top of the fuselage, a T-tail with a big fillet, and main wheels tucked into pods on the belly.'},
+ {id:'b752', name:'Boeing 757-200', short:'757-200', maker:'Boeing', icao:'B752', cat:'narrow',
+  L:47.3, D:3.76, gearH:1.9, height:13.6, nose:{len:1.85,style:'droop',drop:0.22}, cockpit:'boeing',
+  tail:{len:2.9,style:'cone'}, fin:{rc:7.0,tc:2.2,sw:5.6,fillet:0.3}, hs:{c:3.6,sw:4.8,rise:0.6},
+  wing:{x:0.36,c:7.5,ct:1.7,so:11,rise:2.0,tip:'plain',tipH:0}, eng:[{f:0.32,d:2.5,len:5.0,fwd:0.55}],
+  gear:{axles:2,r:0.58}, ng:{x:0.09,r:0.42}, win:{pitch:0.51,w:0.23}, doors:[0.09,0.33,0.62,0.9],
+  tip:'A long, slim single-aisle body standing on tall legs, four-wheel bogies (rare on a narrowbody) and a drooping nose.'},
+ {id:'b763', name:'Boeing 767-300ER', short:'767-300ER', maker:'Boeing', icao:'B763', cat:'wide',
+  L:54.9, D:5.03, gearH:1.85, height:15.85, nose:{len:1.8,style:'droop',drop:0.17}, cockpit:'boeing',
+  tail:{len:2.6,style:'pointed'}, fin:{rc:8.2,tc:2.8,sw:6.6,fillet:0.3}, hs:{c:4.3,sw:6,rise:0.8},
+  wing:{x:0.37,c:8.6,ct:2.0,so:12.5,rise:2.4,tip:'plain',tipH:0}, eng:[{f:0.32,d:2.75,len:5.4,fwd:0.5}],
+  gear:{axles:2,r:0.62}, ng:{x:0.1,r:0.45}, win:{pitch:0.51,w:0.24}, doors:[0.09,0.3,0.62,0.9],
+  tip:'A twin-aisle body noticeably slimmer than the big widebodies, plain wingtips, four-wheel gear and a nose that slopes down to the tip.'}
+];
+
+// Families, then every in-service variant built from its closest sibling.
+const FAMILY_OF = {a20n:'a320', b38m:'737', b738:'737', b789:'787', a359:'a350', b77w:'777', b772:'777', a333:'a330', b744:'747', b748:'747',
+  a388:'a380', bcs3:'a220', e190:'ejet', crj9:'crj', md11:'md11', yk40:'yak40', at76:'atr', b752:'757', b763:'767'};
+const FAMILIES = [['737','Boeing 737'],['757','Boeing 757'],['767','Boeing 767'],['777','Boeing 777'],['787','Boeing 787'],['747','Boeing 747'],
+  ['a220','Airbus A220'],['a320','Airbus A320 family'],['a330','Airbus A330'],['a340','Airbus A340'],['a350','Airbus A350'],['a380','Airbus A380'],
+  ['ejet','Embraer E-Jets'],['crj','Bombardier CRJ'],['atr','ATR'],['md11','McDonnell Douglas MD-11'],['yak40','Yakovlev Yak-40']];
+MODELS.forEach(m=>{ m.fam=FAMILY_OF[m.id]; });
+// What the player answers: the family, e.g. "777", not "777-300ER".
+const FAM = {
+ '737':{short:'737',maker:'Boeing',cat:'narrow',tip:'Short legs that keep the engines close to the ground, a pointed tail cone with a flat end, and either blended winglets (737 NG) or split winglets with saw-tooth exhausts (737 MAX).'},
+ '757':{short:'757',maker:'Boeing',cat:'narrow',tip:'A long, slim single-aisle body on tall legs, four-wheel bogies (rare on a narrowbody) and a drooping nose.'},
+ '767':{short:'767',maker:'Boeing',cat:'wide',tip:'A slim twin-aisle body on four-wheel bogies, a Boeing cockpit with a nose that slopes down to the tip, and mostly plain wingtips.'},
+ '777':{short:'777',maker:'Boeing',cat:'wide',tip:'Huge engines, six wheels in a row on each main gear, and a tail cone that ends in a flat vertical blade.'},
+ '787':{short:'787',maker:'Boeing',cat:'wide',tip:'A smooth nose with no corners around the four cockpit windows, raked wingtips with no winglet, and saw-tooth engine exhausts.'},
+ '747':{short:'747',maker:'Boeing',cat:'quad',tip:'The hump: an upper deck along the front of the body, plus four engines.'},
+ 'a220':{short:'A220',maker:'Airbus',cat:'narrow',tip:'A small jet carrying oversized engines, big cabin and cockpit windows, and plain wingtips.'},
+ 'a320':{short:'A320',maker:'Airbus',cat:'narrow',tip:'A single-aisle Airbus: rounded nose, conical tail cone, and small wingtip fences or curved sharklets.'},
+ 'a340':{short:'A340',maker:'Airbus',cat:'quad',tip:'Looks like an A330, but with four engines, small canted winglets, and an extra set of wheels under the middle of the belly.'},
+ 'a330':{short:'A330',maker:'Airbus',cat:'wide',tip:'A long twin-aisle Airbus on two engines, with the classic Airbus cockpit, upturned winglets and four-wheel bogies.'},
+ 'a350':{short:'A350',maker:'Airbus',cat:'wide',tip:'Black paint wraps around the cockpit windows like a mask, and the wingtips curl gently upward.'},
+ 'a380':{short:'A380',maker:'Airbus',cat:'quad',tip:'Two full rows of windows from nose to tail, four engines, and small fences above and below each wingtip.'},
+ 'ejet':{short:'E-Jet',maker:'Embraer',cat:'regional',tip:'A compact jet with engines under the wings and a long fin fillet running forward along the spine.'},
+ 'crj':{short:'CRJ',maker:'Bombardier',cat:'regional',tip:'Engines on the rear fuselage, a T-tail, and a skinny tube that sits low to the ground.'},
+ 'atr':{short:'ATR',maker:'ATR',cat:'prop',tip:'Propellers, a wing on top of the fuselage, a T-tail and main wheels in pods on the belly.'},
+ 'md11':{short:'MD-11',maker:'McDonnell Douglas',cat:'trijet',tip:'A third engine built straight through the base of the fin, and winglets that point both up and down.'},
+ 'yak40':{short:'Yak-40',maker:'Yakovlev',cat:'regtri',tip:'Three engines bunched at the tail, a T-tail, a straight unswept wing and round cabin windows.'}
+};
+FAMILIES.forEach(([id,name])=>{ FAM[id].id=id; FAM[id].name=name; });
+const mergeModel=(a,b)=>{ const o=Object.assign({},a); for(const k in b){ const v=b[k], av=a[k];
+  o[k]=(v&&typeof v==='object'&&!Array.isArray(v)&&av&&typeof av==='object'&&!Array.isArray(av))? Object.assign({},av,v) : v; } return o; };
+const like=(id,o)=>{ const b=MODELS.find(m=>m.id===id); MODELS.push(mergeModel(b,o)); };
+
+like('b738',{id:'b737',name:'Boeing 737-700',short:'737-700',icao:'B737',L:33.63,doors:[0.12,0.88],wing:{x:0.35},
+  tip:'The short 737 Next Generation: blended winglets and smooth engine exhausts like the -800, on a stubby body with few window rows ahead of the wing.'});
+like('b738',{id:'b739',name:'Boeing 737-900ER',short:'737-900ER',icao:'B739',L:42.11,doors:[0.09,0.73,0.92],
+  tip:'The longest 737 Next Generation: blended winglets, smooth exhausts, a long body and an extra pair of exit doors behind the wing.'});
+like('b38m',{id:'b39m',name:'Boeing 737 MAX 9',short:'737 MAX 9',icao:'B39M',L:42.16,doors:[0.09,0.73,0.92],
+  tip:'MAX features (split winglets, saw-tooth exhausts) on a long body with an extra pair of exit doors behind the wing.'});
+like('b752',{id:'b753',name:'Boeing 757-300',short:'757-300',icao:'B753',L:54.47,doors:[0.08,0.28,0.55,0.75,0.92],
+  tip:'A 757 stretched into a very long, thin tube on tall legs. Count the doors: five per side against four on the 757-200.'});
+like('b763',{id:'b762',name:'Boeing 767-200ER',short:'767-200ER',icao:'B762',L:48.51,doors:[0.1,0.33,0.88],
+  tip:'The short 767: a stubby twin-aisle body with plain wingtips and little fuselage between the wing and the tail.'});
+like('b763',{id:'b764',name:'Boeing 767-400ER',short:'767-400ER',icao:'B764',L:61.37,gearH:2.05,height:16.87,wing:{tip:'raked'},doors:[0.08,0.28,0.5,0.7,0.91],
+  tip:'The longest 767, the only one with raked wingtips, standing on taller legs with five doors per side.'});
+like('b763',{id:'b76f',name:'Boeing 767-300F',short:'767-300F',icao:'B763',noWin:true,doors:[0.09],
+  tip:'A 767-300 freighter: the familiar slim twin-aisle body with no cabin windows at all, only a crew door behind the cockpit.'});
+like('b772',{id:'b77l',name:'Boeing 777-200LR',short:'777-200LR',icao:'B77L',wing:{tip:'raked'},eng:[{f:0.3,d:4.1,len:7.4,fwd:0.5}],
+  tip:'The short 777 body with four doors per side, but with raked wingtips and the giant engines of the 777-300ER.'});
+like('b77w',{id:'b773',name:'Boeing 777-300',short:'777-300',icao:'B773',wing:{tip:'plain'},eng:[{f:0.3,d:3.6,len:7.0,fwd:0.5}],
+  tip:'The long 777 with five doors per side, but plain wingtips and smaller engines than the 777-300ER.'});
+like('b77l',{id:'b77f',name:'Boeing 777F',short:'777F',icao:'B77L',noWin:true,doors:[0.09],
+  tip:'A 777 freighter: raked wingtips, six-wheel gear, huge engines and no cabin windows, only a crew door behind the cockpit.'});
+like('b789',{id:'b788',name:'Boeing 787-8',short:'787-8',icao:'B788',L:56.72,height:16.92,doors:[0.09,0.32,0.66,0.9],
+  tip:'The short 787: the smooth sloping nose, raked wingtips and big windows on a compact body.'});
+like('b789',{id:'b78x',name:'Boeing 787-10',short:'787-10',icao:'B78X',L:68.28,height:17.02,doors:[0.07,0.29,0.62,0.9],
+  tip:'The longest 787: the same smooth nose and raked wingtips on a long body, with lots of fuselage behind the wing.'});
+like('a20n',{id:'a319',name:'Airbus A319',short:'A319',icao:'A319',L:33.84,eng:[{f:0.33,d:1.95,len:4.2,fwd:0.6}],wing:{tip:'fence',tipH:1.0},doors:[0.13,0.88],
+  tip:'The short classic A320-family jet: small wingtip fences, slim engines and a stubby body.'});
+like('a20n',{id:'a320',name:'Airbus A320',short:'A320',icao:'A320',eng:[{f:0.33,d:1.95,len:4.2,fwd:0.6}],wing:{tip:'fence',tipH:1.0},
+  tip:'The original A320: small triangular fences at the wingtips and slimmer engines than the neo. (Some have since been fitted with sharklets.)'});
+like('a320',{id:'a321',name:'Airbus A321',short:'A321',icao:'A321',L:44.51,doors:[0.1,0.29,0.66,0.9],
+  tip:'The long classic A320-family jet: slim engines, wingtip fences and four doors per side.'});
+like('a20n',{id:'a21n',name:'Airbus A321neo',short:'A321neo',icao:'A21N',L:44.51,doors:[0.1,0.29,0.66,0.9],
+  tip:'The long A320neo-family jet: big round engines, sharklets and four doors per side.'});
+like('a333',{id:'a332',name:'Airbus A330-200',short:'A330-200',icao:'A332',L:58.82,height:17.39,doors:[0.09,0.32,0.68,0.92],
+  tip:'A shorter A330 with a taller fin, so the wing looks further back along the body than on the -300.'});
+like('a333',{id:'a339',name:'Airbus A330-900',short:'A330-900',icao:'A339',eng:[{f:0.3,d:3.5,len:6.7,fwd:0.5}],wing:{tip:'sharklet',tipH:3.7},
+  tip:'An A330-300 body with tall curved sharklets and bigger engines. The classic Airbus cockpit, with no black mask, sets it apart from the A350.'});
+like('a333',{id:'a342',fam:'a340',cat:'quad',name:'Airbus A340-200',short:'A340-200',icao:'A342',L:59.4,
+  tip:'The shortest A340: four engines on a stubby A330-sized body, with a twin-wheel centre gear under the belly.'});
+like('a333',{id:'a343',fam:'a340',cat:'quad',name:'Airbus A340-300',short:'A340-300',icao:'A343',L:63.69,
+  tip:'The classic A340: an A330-300 body on four engines, with a twin-wheel centre gear and small canted winglets.'});
+like('a333',{id:'a345',fam:'a340',cat:'quad',name:'Airbus A340-500',short:'A340-500',icao:'A345',L:67.93,
+  tip:'The ultra-long-range A340: four big Rolls-Royce engines, a longer body than the -300 and a four-wheel centre bogie.'});
+like('a333',{id:'a346',fam:'a340',cat:'quad',name:'Airbus A340-600',short:'A340-600',icao:'A346',L:75.36,
+  tip:'The longest A340, even longer than a 747-400: four big engines, a four-wheel centre bogie and a very long, thin body.'});
+like('a359',{id:'a35k',name:'Airbus A350-1000',short:'A350-1000',icao:'A35K',L:73.79,height:17.08,gear:{axles:3,r:0.72},eng:[{f:0.29,d:3.55,len:7.0,fwd:0.55}],doors:[0.07,0.29,0.62,0.91],
+  tip:'The long A350: the black cockpit mask and curled wingtips, plus six-wheel main gear.'});
+like('bcs3',{id:'bcs1',name:'Airbus A220-100',short:'A220-100',icao:'BCS1',L:35.0,
+  tip:'The short A220: oversized engines on a short body with only a few window rows between the doors and the wing.'});
+like('e190',{id:'e175',name:'Embraer E175',short:'E175',icao:'E175',L:31.68,height:9.86,eng:[{f:0.33,d:1.6,len:3.4,fwd:0.6}],wing:{c:4.6,so:6.8},
+  tip:'The small E-Jet: a compact body with winglets and slim engines under the wing.'});
+like('e190',{id:'e295',name:'Embraer E195-E2',short:'E195-E2',icao:'E295',L:41.5,height:10.9,gearH:1.2,eng:[{f:0.33,d:2.15,len:4.2,fwd:0.6}],wing:{tip:'raked',tipH:0,c:5.8,so:9},
+  tip:'The long new-generation E-Jet: big geared-fan engines and long wings with raked tips instead of winglets.'});
+like('crj9',{id:'crj10',name:'Bombardier CRJ1000',short:'CRJ1000',icao:'CRJX',L:39.13,
+  tip:'The longest CRJ: rear engines and T-tail on a very long, skinny tube, with two pairs of overwing exits.'});
+like('b752',{id:'b75f',name:'Boeing 757-200F',short:'757-200F',icao:'B752',noWin:true,doors:[0.09],
+  tip:'A 757-200 freighter: the long slim body on tall legs with four-wheel bogies, but no cabin windows, only a crew door behind the cockpit.'});
+like('crj9',{id:'crj7',name:'Bombardier CRJ700',short:'CRJ700',icao:'CRJ7',L:32.3,height:7.57,
+  tip:'The shorter CRJ: rear-mounted engines and a T-tail on a slim tube, with fewer windows ahead of the wing.'});
+like('at76',{id:'at46',name:'ATR 42-600',short:'ATR 42-600',icao:'AT46',L:22.67,
+  tip:'The small ATR: high wing, propellers and T-tail on a short body, so the nose looks stubby next to the ATR 72.'});
+
+const PHOTOS = [
+ {"id": "ja340j", "src": "photos/ja340j.jpg", "w": 3456, "h": 2200, "ow": 3456, "model": "b738", "airline": "Japan Airlines", "reg": "JA340J", "camera": "Canon EOS Kiss X4", "date": "21 Nov 2025", "focal": 116, "exif": "f/14 · 1/640 · ISO 400", "focus": {"nose": {"x": 2713, "y": 1415, "w": 475}, "tail": {"x": 726, "y": 862, "w": 1037}, "engine": {"x": 1611, "y": 1544, "w": 734}, "wingtip": {"x": 2182, "y": 1177, "w": 475}}, "full": {"x": 1555, "y": 1177, "w": 2981}},
+ {"id": "b5969", "src": "photos/b5969.jpg", "w": 3600, "h": 1983, "ow": 3600, "model": "a333", "airline": "China Southern Airlines", "reg": "B-5969", "camera": "Canon EOS Kiss X4", "date": "15 Nov 2025", "focal": 250, "exif": "f/7.1 · 1/400 · ISO 100", "focus": {"nose": {"x": 389, "y": 722, "w": 451}, "tail": {"x": 3194, "y": 958, "w": 903}, "engine": {"x": 1083, "y": 1104, "w": 694}, "gear": {"x": 1757, "y": 1299, "w": 625}}, "full": {"x": 1875, "y": 1007, "w": 3472}},
+ {"id": "ew88187", "src": "photos/ew88187.jpg", "w": 3600, "h": 1740, "ow": 3600, "model": "yk40", "airline": "Belavia (museum aircraft)", "reg": "EW-88187", "camera": "Canon EOS R10", "date": "2 Aug 2026", "focal": 17, "exif": "f/22 · 1/80 · ISO 200", "focus": {"nose": {"x": 2940, "y": 810, "w": 900}, "tail": {"x": 660, "y": 570, "w": 1080}, "engine": {"x": 630, "y": 930, "w": 600}, "gear": {"x": 1500, "y": 1230, "w": 720}}, "full": {"x": 1680, "y": 900, "w": 3480}},
+ {"id": "mahan772", "src": "photos/mahan772.jpg", "w": 3600, "h": 2400, "ow": 3600, "model": "b772", "airline": "Mahan Air", "reg": null, "camera": "Canon EOS R10", "date": "13 Aug 2026", "focal": 100, "exif": "f/5 · 1/1250 · ISO 800", "focus": {"nose": {"x": 960, "y": 1380, "w": 960}, "tail": {"x": 2940, "y": 420, "w": 1080}, "engine": {"x": 3060, "y": 1530, "w": 1020}, "gear": {"x": 1590, "y": 1650, "w": 780}}, "full": {"x": 1800, "y": 1200, "w": 3600}},
+ {"id": "n782ha", "src": "photos/n782ha.jpg", "w": 3600, "h": 2070, "ow": 3600, "model": "b789", "airline": "Alaska Airlines", "reg": "N782HA", "camera": "Canon EOS R10", "date": "28 Oct 2026", "focal": 250, "exif": "f/8 · 1/800 · ISO 125", "focus": {"nose": {"x": 630, "y": 981, "w": 900}, "tail": {"x": 3150, "y": 882, "w": 990}, "engine": {"x": 1710, "y": 1125, "w": 900}, "gear": {"x": 1800, "y": 1305, "w": 900}}, "full": {"x": 1899, "y": 990, "w": 3510}},
+ {"id": "dabyn", "src": "photos/dabyn.jpg", "w": 3600, "h": 1680, "ow": 3600, "model": "b748", "airline": "Lufthansa", "reg": "D-ABYN", "camera": "Canon EOS R10", "date": "25 Aug 2026", "focal": 146, "exif": "f/5 · 1/1600 · ISO 100", "focus": {"nose": {"x": 3090, "y": 924, "w": 540}, "tail": {"x": 630, "y": 738, "w": 900}, "engine": {"x": 1950, "y": 1020, "w": 960}}, "full": {"x": 1800, "y": 900, "w": 3180}},
+ {"id": "bhnl", "src": "photos/bhnl.jpg", "w": 2576, "h": 1718, "ow": 2576, "model": "b772", "variant": "Boeing 777-200", "airline": "Cathay Pacific", "reg": "B-HNL", "shared": true, "focus": {"nose": {"x": 296, "y": 580, "w": 644}, "engine": {"x": 1121, "y": 825, "w": 773}, "tail": {"x": 2062, "y": 902, "w": 902}, "wingtip": {"x": 2294, "y": 606, "w": 515}}, "full": {"x": 1302, "y": 863, "w": 2576}},
+ {"id": "fwxwb", "src": "photos/fwxwb.jpg", "w": 1752, "h": 1161, "ow": 1752, "model": "a359", "variant": null, "airline": "Airbus (test aircraft)", "reg": "F-WXWB", "shared": true, "focus": {"nose": {"x": 160, "y": 450, "w": 330}, "engine": {"x": 860, "y": 500, "w": 400}, "gear": {"x": 690, "y": 760, "w": 300}}, "full": {"x": 880, "y": 580, "w": 1752}},
+ {"id": "a220house", "src": "photos/a220house.jpg", "w": 2576, "h": 1718, "ow": 2576, "model": "bcs3", "variant": null, "airline": "Airbus house colours", "reg": null, "shared": true, "focus": {"nose": {"x": 193, "y": 670, "w": 515}, "engine": {"x": 735, "y": 1082, "w": 490}, "wingtip": {"x": 2049, "y": 412, "w": 515}}, "full": {"x": 1198, "y": 799, "w": 2576}},
+ {"id": "n130dl", "src": "photos/n130dl.jpg", "w": 2350, "h": 1567, "ow": 2350, "model": "b763", "variant": null, "airline": "Delta Air Lines", "reg": "N130DL", "shared": true, "focus": {"nose": {"x": 164, "y": 611, "w": 446}, "engine": {"x": 1022, "y": 799, "w": 588}, "gear": {"x": 1187, "y": 975, "w": 529}, "tail": {"x": 1998, "y": 764, "w": 705}}, "full": {"x": 1187, "y": 799, "w": 2350}},
+ {"id": "a6edy", "src": "photos/a6edy.jpg", "w": 1632, "h": 1088, "ow": 1632, "model": "a388", "variant": null, "airline": "Emirates", "reg": "A6-EDY", "shared": true, "focus": {"nose": {"x": 110, "y": 440, "w": 260}, "engine": {"x": 600, "y": 735, "w": 350}, "tail": {"x": 1450, "y": 480, "w": 500}, "wingtip": {"x": 925, "y": 800, "w": 250}}, "full": {"x": 820, "y": 560, "w": 1632}},
+ {"id": "fwwez", "src": "photos/fwwez.jpg", "w": 2600, "h": 1735, "ow": 2600, "model": "at76", "variant": null, "airline": "Firefly", "reg": "F-WWEZ", "shared": true, "focus": {"nose": {"x": 195, "y": 611, "w": 585}, "engine": {"x": 1171, "y": 650, "w": 650}, "tail": {"x": 2276, "y": 910, "w": 715}, "wingtip": {"x": 1886, "y": 481, "w": 390}}, "full": {"x": 1301, "y": 884, "w": 2600}},
+ {"id": "phez", "src": "photos/phez.jpg", "w": 1200, "h": 800, "ow": 1200, "model": "e190", "variant": null, "airline": "KLM Cityhopper", "reg": "PH-EZA", "shared": true, "focus": {"nose": {"x": 110, "y": 330, "w": 260}, "engine": {"x": 500, "y": 405, "w": 250}, "gear": {"x": 515, "y": 500, "w": 200}, "wingtip": {"x": 910, "y": 290, "w": 200}, "tail": {"x": 1000, "y": 360, "w": 300}}, "full": {"x": 600, "y": 400, "w": 1200}},
+ {"id": "fwnew", "src": "photos/fwnew.jpg", "w": 2000, "h": 1296, "ow": 2000, "model": "a20n", "variant": null, "airline": "Airbus house colours", "reg": "F-WNEW", "shared": true, "focus": {"nose": {"x": 235, "y": 335, "w": 430}, "engine": {"x": 470, "y": 705, "w": 360}, "wingtip": {"x": 1561, "y": 440, "w": 360}}, "full": {"x": 1001, "y": 690, "w": 2000}},
+ {"id": "fgkxf", "src": "photos/fgkxf.jpg", "w": 1200, "h": 816, "ow": 1200, "model": "a320", "variant": null, "airline": "Air France", "reg": "F-GKXF", "shared": true, "focus": {"nose": {"x": 1110, "y": 420, "w": 300}, "engine": {"x": 690, "y": 478, "w": 300}, "tail": {"x": 215, "y": 240, "w": 380}, "gear": {"x": 585, "y": 500, "w": 260}}, "full": {"x": 600, "y": 410, "w": 1200}},
+ {"id": "klmmd11", "src": "photos/klmmd11.jpg", "w": 2219, "h": 1585, "ow": 2219, "model": "md11", "variant": null, "airline": "KLM", "reg": null, "shared": true, "focus": {"nose": {"x": 2064, "y": 721, "w": 355}, "tail": {"x": 666, "y": 766, "w": 466}, "wingtip": {"x": 105, "y": 743, "w": 266}, "gear": {"x": 1110, "y": 1054, "w": 510}}, "full": {"x": 1110, "y": 843, "w": 2219}},
+ {"id": "n586nw", "src": "photos/n586nw.jpg", "w": 1845, "h": 1194, "ow": 1845, "model": "b753", "variant": null, "airline": "Delta Air Lines", "reg": "N586NW", "shared": true, "focus": {"nose": {"x": 130, "y": 560, "w": 320}, "engine": {"x": 930, "y": 640, "w": 420}, "gear": {"x": 835, "y": 800, "w": 420}, "tail": {"x": 1500, "y": 520, "w": 450}}, "full": {"x": 930, "y": 600, "w": 1845}},
+ {"id": "n504ea", "src": "photos/n504ea.jpg", "w": 983, "h": 640, "ow": 983, "model": "b752", "variant": null, "airline": "Eastern Air Lines", "reg": "N504EA", "shared": true, "focus": {"nose": {"x": 70, "y": 345, "w": 200}, "engine": {"x": 420, "y": 360, "w": 240}, "gear": {"x": 500, "y": 410, "w": 220}}, "full": {"x": 490, "y": 330, "w": 983}},
+ {"id": "n915fd", "src": "photos/n915fd.jpg", "w": 1200, "h": 799, "ow": 1200, "model": "b75f", "variant": null, "airline": "FedEx Express", "reg": "N915FD", "shared": true, "focus": {"nose": {"x": 90, "y": 375, "w": 220}, "engine": {"x": 420, "y": 490, "w": 260}, "gear": {"x": 555, "y": 535, "w": 240}, "wingtip": {"x": 880, "y": 320, "w": 200}}, "full": {"x": 600, "y": 420, "w": 1200}},
+ {"id": "fhmld", "src": "photos/fhmld.jpg", "w": 2000, "h": 1334, "ow": 2000, "model": "crj10", "variant": null, "airline": "HOP!", "reg": "F-HMLD", "shared": true, "focus": {"nose": {"x": 1881, "y": 680, "w": 300}, "tail": {"x": 500, "y": 670, "w": 380}, "gear": {"x": 970, "y": 830, "w": 380}}, "full": {"x": 990, "y": 650, "w": 2000}},
+ {"id": "n659ca", "src": "photos/n659ca.jpg", "w": 1920, "h": 1080, "ow": 1920, "model": "crj7", "variant": null, "airline": "Delta Connection", "reg": "N659CA", "shared": true, "focus": {"nose": {"x": 150, "y": 560, "w": 300}, "engine": {"x": 1340, "y": 545, "w": 380}, "tail": {"x": 1650, "y": 440, "w": 420}, "gear": {"x": 1000, "y": 700, "w": 300}}, "full": {"x": 960, "y": 560, "w": 1920}},
+ {"id": "a6erf", "src": "photos/a6erf.jpg", "w": 1920, "h": 1280, "ow": 1920, "model": "a345", "variant": null, "airline": "Emirates", "reg": "A6-ERF", "shared": true, "focus": {"engine": {"x": 660, "y": 500, "w": 360}, "gear": {"x": 950, "y": 810, "w": 420}, "tail": {"x": 390, "y": 800, "w": 420}, "wingtip": {"x": 100, "y": 380, "w": 240}}, "full": {"x": 950, "y": 670, "w": 1920}},
+ {"id": "fwttn", "src": "photos/fwttn.jpg", "w": 2000, "h": 1332, "ow": 2000, "model": "a339", "variant": null, "airline": "Airbus house colours", "reg": "F-WTTN", "shared": true, "focus": {"nose": {"x": 110, "y": 330, "w": 300}, "gear": {"x": 790, "y": 780, "w": 340}, "wingtip": {"x": 1830, "y": 520, "w": 320}}, "full": {"x": 1000, "y": 610, "w": 2000}},
+ {"id": "zssld", "src": "photos/zssld.jpg", "w": 1600, "h": 1084, "ow": 1600, "model": "a342", "variant": null, "airline": "South African Airways", "reg": "ZS-SLD", "shared": true, "focus": {"nose": {"x": 1490, "y": 280, "w": 260}, "engine": {"x": 520, "y": 390, "w": 300}, "gear": {"x": 760, "y": 640, "w": 330}, "tail": {"x": 370, "y": 600, "w": 300}, "wingtip": {"x": 90, "y": 270, "w": 200}}, "full": {"x": 800, "y": 480, "w": 1600}},
+ {"id": "tcjnl", "src": "photos/tcjnl.jpg", "w": 2000, "h": 1335, "ow": 2000, "model": "a333", "variant": null, "airline": "Turkish Airlines", "reg": "TC-JNL", "shared": true, "focus": {"nose": {"x": 90, "y": 580, "w": 300}, "engine": {"x": 870, "y": 700, "w": 320}, "gear": {"x": 900, "y": 880, "w": 300}, "wingtip": {"x": 1680, "y": 440, "w": 260}, "tail": {"x": 1690, "y": 600, "w": 380}}, "full": {"x": 1000, "y": 650, "w": 2000}}
+];
+PHOTOS.forEach(p=>{
+  p.img=new Image(); p.ready=false;
+  p.img.onload=()=>{ p.ready=true; updatePhotoNote(); };
+  p.img.onerror=()=>{ p.failed=true; updatePhotoNote(); };
+  p.img.src=p.src;
+});
+const COMMUNITY=new Map();   // accepted wall photos, keyed by post id
+function allPhotos(){ return PHOTOS.concat([...COMMUNITY.values()]); }
+function readyPhotos(){ return allPhotos().filter(p=>p.ready); }
+function airlineOf(p){ return AIRLINE_OF[p.id] || (p.community && p.airline ? [p.airline, p.authorName? 'from the wall' : ''] : null); }
+// Returns plain text: escape it before putting it into HTML.
+function photoCredit(p){
+  const who=`${p.airline||'Airline not given'}${p.reg?' '+p.reg:''}`;
+  if(p.community) return `Spotters’ Wall · ${who} · posted by ${p.authorName||'a spotter'}${p.place?' · '+p.place:''}${p.date?' · '+p.date:''}`;
+  return p.shared ? `Shared photo · ${who} · Photo: ${p.credit||'unknown'}` : `Owner’s photo · ${who} · ${p.camera}, ${p.focal} mm · ${p.date}`;
+}
+const photoTag = p => p.community ? 'SPOTTERS’ WALL' : (p.shared ? 'PHOTO: '+String(p.credit||'unknown').toUpperCase() : 'OWNER’S PHOTO');
+const photoTagWords = p => p.community ? 'Wall photo' : (p.shared ? 'Shared photo' : 'Owner’s photo');
+function updatePhotoNote(){
+  const el=document.getElementById('photoCount'); if(!el) return;
+  const n=readyPhotos().length;
+  const rp=readyPhotos(), mine=rp.filter(p=>!p.shared&&!p.community).length, shared=rp.filter(p=>p.shared).length, wallN=rp.filter(p=>p.community).length;
+  el.textContent = n? `${n} real photos ready: ${mine} by the owner${shared?`, ${shared} shared`:''}${wallN?`, ${wallN} from the Spotters’ Wall`:''}. Each roll uses ${Math.min(MAX_ROUNDS,n)} of them.` : (PHOTOS.some(p=>!p.failed)? 'Loading photos…' : 'The photos could not be loaded');
+}
+let RNG=Math.random;   // swapped for a seeded generator during the Daily 5
+const pick = a => a[Math.floor(RNG()*a.length)];
+const shuffle = a => { a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(RNG()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; };
+function seeded(str){ let h=1779033703^str.length; for(let i=0;i<str.length;i++){ h=Math.imul(h^str.charCodeAt(i),3432918353); h=h<<13|h>>>19; }
+  let a=h>>>0; return ()=>{ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const dayKey = () => new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Tokyo'});
+const dayLabel = k => { const [y,m,d]=k.split('-').map(Number); return new Date(Date.UTC(y,m-1,d)).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}); };
+const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+const ease = t => t<0.5 ? 2*t*t : 1-Math.pow(-2*t+2,2)/2;
+const $ = id => document.getElementById(id);
+
+function renderPhoto(ctx,W,H,dpr,p,cam){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  let sw=Math.min(cam.w,p.w), sh=sw*H/W;
+  if(sh>p.h){ sh=p.h; sw=sh*W/H; }
+  const sx=clamp(cam.cx-sw/2,0,p.w-sw), sy=clamp(cam.cy-sh/2,0,p.h-sh);
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  ctx.drawImage(p.img,sx,sy,sw,sh,0,0,W,H);
+}
+const photoFull = p => ({cx:p.full.x, cy:p.full.y, w:p.full.w});
+const photoDetail = (p,f,k) => ({cx:p.focus[f].x, cy:p.focus[f].y, w:p.focus[f].w*k});
+const zoomOf = (p,cam) => Math.max(1, p.full.w/cam.w);
+const photoFocal = (p,cam) => '×'+zoomOf(p,cam).toFixed(1)+(p.focal? ' · '+Math.round(p.focal*(p.ow||p.w)/cam.w/10)*10+' mm' : '');
+function drawOverlay(ctx,W,H,dpr,info){
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const inset=14, len=Math.min(26,W*0.05);
+  const corners=[[inset,inset,1,1],[W-inset,inset,-1,1],[inset,H-inset,1,-1],[W-inset,H-inset,-1,-1]];
+  [['rgba(0,0,0,.4)',1],['rgba(255,255,255,.92)',0]].forEach(([col,o])=>{
+    ctx.strokeStyle=col; ctx.lineWidth=2;
+    corners.forEach(([x,y,sx,sy])=>{ ctx.beginPath(); ctx.moveTo(x+o,y+len*sy+o); ctx.lineTo(x+o,y+o); ctx.lineTo(x+len*sx+o,y+o); ctx.stroke(); });
+    const cx=W/2+o, cy=H/2+o; ctx.beginPath();
+    ctx.moveTo(cx-12,cy); ctx.lineTo(cx-4,cy); ctx.moveTo(cx+4,cy); ctx.lineTo(cx+12,cy);
+    ctx.moveTo(cx,cy-12); ctx.lineTo(cx,cy-4); ctx.moveTo(cx,cy+4); ctx.lineTo(cx,cy+12); ctx.lineWidth=1.5; ctx.stroke();
+  });
+  ctx.font='500 12px "IBM Plex Mono",ui-monospace,monospace'; ctx.textBaseline='alphabetic';
+  const txt=(t,x,y,align)=>{ ctx.textAlign=align; ctx.fillStyle='rgba(0,0,0,.5)'; ctx.fillText(t,x+1,y+1); ctx.fillStyle='rgba(255,255,255,.95)'; ctx.fillText(t,x,y); };
+  const pad=inset+10;
+  if(info.tl) txt(info.tl,pad,pad+10,'left');
+  if(info.tr) txt(info.tr,W-pad,pad+10,'right');
+  if(info.bl) txt(info.bl,pad,H-pad,'left');
+  if(info.br && W>380) txt(info.br,W-pad,H-pad,'right');
+  ctx.textAlign='left';
+}
+
+/* ---------- cameras ---------- */
+function lerpCam(a,b,e){
+  if(e<=0) return a; if(e>=1) return b;
+  const w=a.w*Math.pow(b.w/a.w,e);
+  const k=Math.abs(b.w-a.w)<1e-6? e : (1/w-1/a.w)/(1/b.w-1/a.w);
+  return {cx:a.cx+(b.cx-a.cx)*k, cy:a.cy+(b.cy-a.cy)*k, w};
+}
+
+/* ---------- records ---------- */
+const KEY='longlens.v1';
+let rec={best:{},log:{},prefs:{}};
+try{ const s=localStorage.getItem(KEY); if(s){ const o=JSON.parse(s); if(o&&typeof o==='object') rec={best:o.best||{},log:o.log||{},prefs:o.prefs||{}}; } }catch(e){}
+function saveRec(){ try{ localStorage.setItem(KEY,JSON.stringify(rec)); }catch(e){} }
+function showBests(){ const g=selectedGame(); Object.keys(DIFF).forEach(k=>{ const b=rec.best[g==='classic'? k : g+'-'+k]; $('best-'+k).textContent = b? 'Best '+b.toLocaleString() : 'Best —'; }); }
+document.querySelectorAll('input[name="game"]').forEach(i=>i.addEventListener('change',showBests));
+
+/* ---------- canvas & loop ---------- */
+const cv=$('cv'), ctx=cv.getContext('2d'), vf=$('vf');
+let W=800, H=400, DPR=1;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2.5);
+  W=Math.max(1,vf.clientWidth); H=Math.max(1,vf.clientHeight);
+  cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
+}
+new ResizeObserver(resize).observe(vf); resize();
+const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let mode='attract';
+let diff='rookie', game=null, lastCam=null, revealFrom=null, revealT=0;
+const att={};
+function newAttract(){
+  const ph=readyPhotos(); att.t0=performance.now();
+  if(!ph.length){ att.photo=null; return; }
+  const prev=att.photo; let p; do{ p=pick(ph); } while(ph.length>1 && p===prev);
+  att.photo=p; att.focus=pick(Object.keys(p.focus));
+}
+newAttract();
+
+function frame(now){
+  requestAnimationFrame(frame);
+  if($('stage').hidden) return;
+  let cam,info,photo=null,full;
+  if(mode==='attract'){
+    if(!att.photo){ newAttract(); }
+    photo=att.photo;
+    if(!photo){ ctx.setTransform(DPR,0,0,DPR,0,0); ctx.fillStyle='#8fa7b8'; ctx.fillRect(0,0,W,H); drawOverlay(ctx,W,H,DPR,{tl:'AF-C',tr:'LONG LENS',bl:'Loading photos…',br:''}); return; }
+    let t=(now-att.t0)/1000;
+    if(t>(reduced?6:9)){ newAttract(); photo=att.photo; t=0; }
+    full=photoFull(photo);
+    const e= reduced? 1 : ease(clamp((t-1.2)/5.3,0,1));
+    cam=lerpCam(photoDetail(photo,att.focus,1),full,e);
+    info={tl:'AF-C  ●  '+photoTag(photo), tr:'LONG LENS', bl:photoFocal(photo,cam), br:photo.exif||''};
+  } else {
+    const r=game.rounds[game.i], d=DIFF[game.diff]; photo=r.photo; full=photoFull(photo);
+    if(mode==='play'){
+      const t=(now-r.t0)/1000;
+      const e=d.emax*ease(clamp((t-d.hold)/(d.end-d.hold),0,1));
+      r.camDet=photoDetail(photo,r.focus,d.startK); r.camFull=full;
+      cam=lerpCam(r.camDet,full,e); lastCam=cam;
+      const worth=zoomPoints(r,cam), hw=$('hWorth'); if(hw.textContent!==String(worth)) hw.textContent=worth;
+      const rem=Math.max(0,DUR-t);
+      const bar=$('timerBar'); bar.style.transform=`scaleX(${rem/DUR})`; bar.classList.toggle('low',rem<5);
+      if(t>=DUR) answer(null);
+    } else if(mode==='pick'){
+      cam=lastCam;
+    } else {
+      const p=clamp((now-revealT)/900,0,1);
+      cam=lerpCam(revealFrom||full,full,ease(p));
+    }
+    info={tl:(mode==='play'?'AF-C  ●':(mode==='pick'?'AF-L  ■ STOPPED':'AF-C'))+'  '+photoTag(photo), tr:'FRAME '+String(game.i+1).padStart(2,'0')+(game.type==='survival'?'':'/'+String(ROUNDS).padStart(2,'0')),
+      bl:photoFocal(photo,cam), br:photo.exif||''};
+  }
+  renderPhoto(ctx,W,H,DPR,photo,cam);
+  drawOverlay(ctx,W,H,DPR,info);
+}
+requestAnimationFrame(frame);
+
+/* ---------- game flow ---------- */
+function show(id){ ['startPanel','playPanel','endPanel','logPanel','wallPanel','boardPanel'].forEach(p=>$(p).hidden=(p!==id)); $('stage').hidden=(id==='logPanel'||id==='wallPanel'||id==='boardPanel');
+  const tab={boardPanel:'boardBtn',wallPanel:'wallBtn',logPanel:'logBtn'}[id]||'playTab';
+  ['playTab','boardBtn','wallBtn','logBtn'].forEach(t=>{ if(t===tab) $(t).setAttribute('aria-current','page'); else $(t).removeAttribute('aria-current'); }); }
+const GAMES = {
+  classic:  {label:'Long Lens',    end:'Roll complete'},
+  blind:    {label:'Blind Stop',   end:'Roll complete'},
+  airline:  {label:'Tail Spotter', end:'Roll complete'},
+  survival: {label:'Sudden Death', end:'Run over'}
+};
+const AIRLINE_OF = {a6erf:['Emirates','UAE'], zssld:['South African Airways','South Africa'], tcjnl:['Turkish Airlines','Turkey'], n586nw:['Delta Air Lines','USA'], n504ea:['Eastern Air Lines','USA'], n915fd:['FedEx Express','USA'], fhmld:['HOP!','France'], n659ca:['Delta Connection','USA'], klmmd11:['KLM','Netherlands'], fgkxf:['Air France','France'], ja340j:['Japan Airlines','Japan'], b5969:['China Southern','China'], mahan772:['Mahan Air','Iran'], n782ha:['Alaska Airlines','USA'],
+  dabyn:['Lufthansa','Germany'], bhnl:['Cathay Pacific','Hong Kong'], n130dl:['Delta Air Lines','USA'], a6edy:['Emirates','UAE'], fwwez:['Firefly','Malaysia'], phez:['KLM Cityhopper','Netherlands']};
+const EXTRA_AIRLINES = [['ANA','Japan'],['Korean Air','South Korea'],['Qantas','Australia'],['Turkish Airlines','Turkey'],['Singapore Airlines','Singapore'],['United Airlines','USA']];
+const bestKey = () => game.daily ? 'daily-'+game.daily : (game.type==='classic' ? game.diff : game.type+'-'+game.diff);
+const boardKeyOf = () => game.daily ? 'daily-'+game.daily : game.type+'-'+game.diff;
+const totalLabel = () => game.type==='survival' ? '' : '/'+ROUNDS;
+function selectedGame(){ return document.querySelector('input[name="game"]:checked').value; }
+function pickRounds(pool,n,lastF){
+  const picked=[], famSeen=new Set(); pool=shuffle(pool);
+  pool.forEach(p=>{ const f=MODELS.find(x=>x.id===p.model).fam; if(picked.length<n && !famSeen.has(f)){ famSeen.add(f); picked.push(p); } });
+  pool.forEach(p=>{ if(picked.length<n && !picked.includes(p)) picked.push(p); });
+  return shuffle(picked).map(p=>{
+    const m=MODELS.find(x=>x.id===p.model), fs=Object.keys(p.focus);
+    let f; do{ f=pick(fs); } while(fs.length>1 && f===lastF.v); lastF.v=f;
+    const al=airlineOf(p);
+    return {m,photo:p,focus:f,answer: game.type==='airline'&&al? al[0] : m.fam};
+  });
+}
+let customPool=null;
+function gamePool(){ if(customPool) return customPool; const ready=readyPhotos(); return game.type==='airline'? ready.filter(p=>airlineOf(p)) : ready; }
+function startDaily(){
+  const day=dayKey(), pool=PHOTOS.filter(p=>!p.failed).sort((a,b)=>a.id<b.id?-1:1);
+  if(!pool.length){ updatePhotoNote(); return; }
+  customPool=null; RNG=seeded('long-lens-daily-'+day);
+  game={type:'classic',daily:day,diff:'spotter',i:0,score:0,streak:0,bestStreak:0,hits:0,rounds:[],lastF:{v:null}};
+  ROUNDS=Math.min(5,pool.length);
+  game.rounds=pickRounds(pool,ROUNDS,game.lastF);
+  $('nickCard').hidden=true;
+  $('hud').hidden=false; $('timer').hidden=false; $('logBtn').hidden=true; $('wallBtn').hidden=true; $('boardBtn').hidden=true; $('playTab').hidden=true;
+  show('playPanel'); nextRound(true);
+}
+function startGame(){
+  RNG=Math.random;
+  diff=document.querySelector('input[name="diff"]:checked').value;
+  let type=selectedGame(); if(customPool && type==='airline') type='classic';
+  game={type,diff,i:0,score:0,streak:0,bestStreak:0,hits:0,rounds:[],lastF:{v:null}};
+  const pool=gamePool();
+  if(!pool.length){ updatePhotoNote(); game=null; return; }
+  ROUNDS = game.type==='survival' ? Infinity : Math.min(MAX_ROUNDS,pool.length);
+  game.rounds=pickRounds(pool, game.type==='survival'? pool.length : ROUNDS, game.lastF);
+  $('nickCard').hidden=true;
+  $('hud').hidden=false; $('timer').hidden=false; $('logBtn').hidden=true; $('wallBtn').hidden=true; $('boardBtn').hidden=true; $('playTab').hidden=true;
+  show('playPanel'); nextRound(true);
+}
+// Points come from the zoom when you answer: 100 points per 1× above ×1.0 (×1.0 = 0, ×2.0 = 100, ×3.0 = 200), then level and game multipliers.
+function zoomFrac(r,cam){
+  if(!r.camFull||!r.camDet||!cam) return 0;
+  const max=r.camFull.w/r.camDet.w; if(max<=1.0001) return 1;
+  return clamp(Math.log(r.camFull.w/cam.w)/Math.log(max),0,1);
+}
+function zoomPoints(r,cam){ if(!cam) return 0; const d=DIFF[game.diff], z=zoomOf(r.photo,cam); return Math.round((z-1)*100*d.mult*(game.type==='blind'?1.25:1)); }
+function updateHud(){
+  $('hRound').textContent=(game.i+1)+totalLabel();
+  $('hScore').textContent=game.score.toLocaleString();
+  $('hStreak').textContent=game.streak>=2? '×'+game.streak : game.streak;
+}
+function buildChoices(r){
+  if(game.type==='airline'){
+    const n=DIFF[game.diff].choices, all=[...new Map(Object.values(AIRLINE_OF).concat(EXTRA_AIRLINES).map(a=>[a[0].toLowerCase(),a])).values()];
+    readyPhotos().forEach(q=>{ const a=airlineOf(q); if(a && !all.some(x=>x[0].toLowerCase()===a[0].toLowerCase())) all.push(a); });
+    const right=all.find(a=>a[0]===r.answer), w1=x=>x[0].toLowerCase().split(/[\s!]+/)[0];
+    const others=shuffle(all.filter(a=>a!==right && w1(a)!==w1(right)));
+    return shuffle([right,...others.slice(0,n-1)]).map(a=>({id:a[0],short:a[0],maker:a[1]}));
+  }
+  const right=FAM[r.m.fam], others=Object.values(FAM).filter(f=>f!==right);
+  if(game.type==='blind') return Object.values(FAM);
+  const n=DIFF[game.diff].choices;
+  const near=shuffle(others.filter(f=>f.cat===right.cat||(right.cat==='quad'&&f.cat==='wide')||(right.cat==='wide'&&f.cat==='quad'))), far=shuffle(others.filter(f=>!near.includes(f)));
+  let pool;
+  if(game.diff==='rookie') pool=shuffle(others);
+  else if(game.diff==='spotter') pool=near.slice(0,2).concat(shuffle(near.slice(2).concat(far)));
+  else pool=near.concat(far);
+  return shuffle([right,...pool.slice(0,n-1)]);
+}
+function renderChoices(r){
+  const box=$('choices'); box.className='choices n'+r.options.length; box.innerHTML='';
+  r.options.forEach((m,i)=>{
+    const b=document.createElement('button'); b.type='button'; b.className='choice'; b.id='choice-'+i; b.dataset.id=m.id;
+    b.innerHTML=`<span class="k">${i<8?i+1:''}</span><span class="nm">${esc(m.short)}</span><span class="mk">${esc(m.maker)}</span>`;
+    b.addEventListener('click',()=>answer(m.id));
+    box.appendChild(b);
+  });
+}
+function nextRound(first){
+  if(!first) game.i++;
+  if(game.type==='survival'){
+    const prev=game.rounds[game.i-1];
+    if(!first && prev && !prev.ok){ endGame(); return; }
+    if(game.i>=game.rounds.length) game.rounds=game.rounds.concat(pickRounds(gamePool(),gamePool().length,game.lastF));
+  } else if(game.i>=ROUNDS){ endGame(); return; }
+  const r=game.rounds[game.i];
+  r.options=buildChoices(r);
+  if(game.type==='blind'){
+    const box=$('choices'); box.className='choices stopwrap'; box.innerHTML='';
+    const b=document.createElement('button'); b.type='button'; b.className='cta stopbtn'; b.id='stopBtn';
+    b.innerHTML='I know it · Stop the clock <span class="arrow">■</span>';
+    b.addEventListener('click',stopLens); box.appendChild(b);
+    box.insertAdjacentHTML('beforeend',`<p class="note">No choices until you stop. Then pick from all ${Object.keys(FAM).length} families. Space bar works too.</p>`);
+  } else renderChoices(r);
+  $('result').hidden=true;
+  cv.setAttribute('aria-label','Zoomed telephoto view of an airliner, frame '+(game.i+1));
+  updateHud(); r.t0=performance.now(); r.stopT=null; mode='play';
+  if(game.type==='blind') $('stopBtn').focus({preventScroll:true});
+}
+function stopLens(){
+  if(mode!=='play'||game.type!=='blind') return;
+  const r=game.rounds[game.i]; r.stopT=Math.min(DUR,(performance.now()-r.t0)/1000);
+  mode='pick'; renderChoices(r);
+  const first=$('choice-0'); if(first) first.focus({preventScroll:true});
+}
+function answer(id){
+  if(mode!=='play' && mode!=='pick') return;
+  const r=game.rounds[game.i], d=DIFF[game.diff];
+  const t= r.stopT!=null ? r.stopT : Math.min(DUR,(performance.now()-r.t0)/1000);
+  if(game.type==='blind' && mode==='play' && id!=null) return;
+  if(game.type==='blind' && mode==='play'){ renderChoices(r); }
+  r.time=t; r.pick=id; r.ok=(id===r.answer); r.bonus=0;
+  r.zoomAt=lastCam? photoFocal(r.photo,lastCam) : '';
+  if(r.ok){ game.streak++; game.hits++; r.bonus=game.streak>=2? Math.min(game.streak-1,5)*40 : 0; r.pts=zoomPoints(r,lastCam)+r.bonus; }
+  else { game.streak=0; r.pts=0; }
+  game.bestStreak=Math.max(game.bestStreak,game.streak);
+  game.score+=r.pts;
+  const lg=rec.log[r.photo.id]||{seen:0,hit:0,best:null}; lg.seen++; if(r.ok){ lg.hit++; lg.best=lg.best==null? t : Math.min(lg.best,t); } rec.log[r.photo.id]=lg; saveRec();
+  mode='reveal'; revealT=performance.now(); revealFrom=lastCam;
+  $('timerBar').style.transform='scaleX(0)';
+  [...$('choices').querySelectorAll('.choice')].forEach(b=>{ b.disabled=true; if(b.dataset.id===r.answer) b.classList.add('right'); else if(b.dataset.id===id) b.classList.add('wrong'); else b.classList.add('dim'); });
+  const verdict = r.ok? 'Identified' : (id==null? 'Time’s up' : 'Not quite');
+  const over = game.type==='survival' ? !r.ok : game.i===ROUNDS-1;
+  const variant=(r.photo.variant)||r.m.name, f=FAM[r.m.fam];
+  const isAir=game.type==='airline';
+  const res=$('result');
+  res.innerHTML=`<div>
+      <div class="rv ${r.ok?'ok':'no'}">${verdict}</div>
+      <p class="rname">${esc(isAir? r.answer : f.name)}</p>
+      <p class="rmeta">${isAir? 'Aircraft' : 'This one'}: <b>${esc(variant)}</b> ${r.photo.community?'':`<span class="icao">${r.m.icao}</span>`} · the lens started on the ${FOCUS_LABEL[r.focus]}</p>
+      <p class="rmeta">${esc(photoCredit(r.photo))}</p>
+      <p class="rtip">${isAir? '<b>Spot an airline by:</b> the colours and symbol on the tail, the engine cowlings and the titles along the fuselage.' : `<b>Spot ${/^[AEM]/.test(f.short)?'an':'a'} ${f.short} by:</b> ${f.tip}`}</p>
+    </div>
+    <div class="rside">
+      <div class="rpts">${r.ok?'+'+r.pts.toLocaleString():'0'}</div>
+      <div class="rtime">${id==null?'no answer':`answered at ${r.zoomAt} · ${t.toFixed(1)} s`}${r.bonus?' · streak +'+r.bonus:''}</div>
+      <button type="button" class="cta small" id="nextBtn">${over?(game.type==='survival'?'See the run':'See the roll'):'Next frame'} <span class="arrow">→</span></button>
+    </div>`;
+  res.hidden=false;
+  $('nextBtn').addEventListener('click',()=>nextRound(false));
+  $('nextBtn').focus({preventScroll:true});
+  cv.setAttribute('aria-label','Full view: '+variant);
+  updateHud();
+}
+function endGame(){
+  const played=game.rounds.slice(0, game.type==='survival'? game.i : ROUNDS);
+  mode='reveal'; game.i=played.length-1;
+  const key=bestKey(), prev=rec.best[key]||0, firstDaily=game.daily && !(key in rec.best), pb=game.daily? firstDaily : (game.score>prev && game.score>0);
+  if(pb){ rec.best[key]=game.score; saveRec(); }
+  const squares=played.slice(0,20).map(r=>r.ok?'🟩':'🟥').join('')+(played.length>20?'…':'');
+  const shareTxt= game.daily ? `Long Lens Daily 5 · ${dayLabel(game.daily)}\n${squares}  ${game.score.toLocaleString()} pts\nCan you name them before ×1?`
+    : game.type==='survival' ? `Long Lens · Sudden Death · ${DIFF[game.diff].label}\nSurvived ${game.hits} frame${game.hits===1?'':'s'} · ${game.score.toLocaleString()} pts\nCan you go further?`
+    : `Long Lens · ${game.type==='classic'?'':GAMES[game.type].label+' · '}${DIFF[game.diff].label}\n${squares}  ${game.score.toLocaleString()} pts\nCan you beat it?`;
+  RNG=Math.random;
+  const boardKey=boardKeyOf(), roll={score:game.score,hits:game.hits,n:played.length,daily:!!game.daily};
+  const hits=played.filter(r=>r.ok), avg=hits.length? hits.reduce((s,r)=>s+r.time,0)/hits.length : null;
+  const isAir=game.type==='airline';
+  const rows=played.map((r,i)=>`<tr><td class="num">${i+1}</td><td><b>${esc(isAir? r.answer : FAM[r.m.fam].short)}</b> · ${esc(r.photo.variant||r.m.name)} <span class="icao">${photoTagWords(r.photo)}</span></td><td>${FOCUS_LABEL[r.focus]}</td><td><span class="mark ${r.ok?'ok':'no'}">${r.ok?'✓ Identified':(r.pick==null?'– Time’s up':'✗ Missed')}</span></td><td class="num">${r.pick==null?'—':r.time.toFixed(1)+' s'}</td><td class="num">${r.pts.toLocaleString()}</td></tr>`).join('');
+  $('endPanel').innerHTML=`
+    <p class="eyebrow">${game.daily? 'Daily 5 · '+dayLabel(game.daily)+(firstDaily?'':' · practice run, not counted') : GAMES[game.type].end+' · '+GAMES[game.type].label+' · '+DIFF[game.diff].label}</p>
+    <p class="bigscore">${game.score.toLocaleString()} ${pb?`<span class="pb">${game.daily?'Counted':'New best'}</span>`:''}</p>
+    <div class="stats">
+      <div class="stat"><div class="l">${game.type==='survival'?'Frames survived':'Identified'}</div><div class="v">${game.type==='survival'? game.hits : game.hits+'/'+played.length}</div></div>
+      <div class="stat"><div class="l">Avg time when right</div><div class="v">${avg==null?'—':avg.toFixed(1)+' s'}</div></div>
+      <div class="stat"><div class="l">Best streak</div><div class="v">${game.bestStreak}</div></div>
+      <div class="stat"><div class="l">${game.daily?'Counted score today':'Previous best'}</div><div class="v">${game.daily? (rec.best[key]||0).toLocaleString() : (prev?prev.toLocaleString():'—')}</div></div>
+    </div>
+    <div class="sharebox"><pre id="shareTxt">${esc(shareTxt)}</pre><button type="button" class="cta small" id="shareBtn">Copy result</button></div>
+    <p class="note" id="boardSave">${board.db&&board.uid?'Saving to the leaderboard…':'Sign in with Google (top right) to put this roll on the leaderboard.'}</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th class="num">#</th><th>${isAir?'Airline · aircraft':'Family · variant'}</th><th>Lens started on</th><th>Result</th><th class="num">Time</th><th class="num">Points</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div class="row">
+      <button type="button" class="cta" id="againBtn">${game.daily?'Play a normal roll':'Play again'} <span class="arrow">→</span></button>
+      <button type="button" class="ghost" id="levelBtn">Change game or level</button>
+      <button type="button" class="ghost" id="endBoardBtn">Leaderboard</button>
+      <button type="button" class="ghost" id="endLogBtn">Open logbook</button>
+    </div>`;
+  $('hud').hidden=true; $('timer').hidden=true; $('logBtn').hidden=false; $('wallBtn').hidden=false; $('boardBtn').hidden=false; $('playTab').hidden=false;
+  show('endPanel');
+  $('againBtn').addEventListener('click',startGame);
+  $('shareBtn').addEventListener('click',async ()=>{
+    const b=$('shareBtn');
+    try{ await navigator.clipboard.writeText(shareTxt); b.textContent='Copied'; }
+    catch(e){ const r=document.createRange(); r.selectNodeContents($('shareTxt')); const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); b.textContent='Selected · press Copy'; }
+    setTimeout(()=>{ if(b.isConnected) b.textContent='Copy result'; },2500);
+  });
+  $('levelBtn').addEventListener('click',toStart);
+  $('endLogBtn').addEventListener('click',openLog);
+  $('endBoardBtn').addEventListener('click',()=>openBoard(boardKey));
+  saveScore(boardKey,roll);
+  $('againBtn').focus({preventScroll:true});
+}
+function toStart(){ customPool=null; RNG=Math.random; renderDaily(); mode='attract'; newAttract(); game=null; showBests(); $('hud').hidden=true; $('timer').hidden=true; $('logBtn').hidden=false; $('wallBtn').hidden=false; $('boardBtn').hidden=false; $('playTab').hidden=false; show('startPanel'); }
+// Quit mid-roll: a normal roll is dropped without saving; a Daily 5 ends and counts the frames already answered, so quitting can't be used to peek and retry.
+let quitArmed=null;
+$('quitBtn').addEventListener('click',()=>{
+  if(!game || $('playPanel').hidden) return;
+  const b=$('quitBtn');
+  if(!quitArmed){ b.textContent= game.daily? 'Tap again · counts as played' : 'Tap again to quit'; quitArmed=setTimeout(()=>{ quitArmed=null; b.textContent='Quit roll'; },3000); return; }
+  clearTimeout(quitArmed); quitArmed=null; b.textContent='Quit roll';
+  if(game.daily){ ROUNDS= mode==='reveal'? game.i+1 : game.i; endGame(); return; }
+  toStart();
+});
+/* ---------- logbook ---------- */
+let logReturn='startPanel';
+function renderLog(){
+  const wrap=$('loggrid'); wrap.innerHTML='';
+  const okPhotos=allPhotos().filter(p=>!p.failed);
+  FAMILIES.forEach(([fid,fname])=>{
+    const ph=okPhotos.filter(p=>MODELS.find(x=>x.id===p.model).fam===fid);
+    const vs=MODELS.filter(m=>m.fam===fid).map(m=>m.short).join(', ');
+    const sec=document.createElement('section'); sec.className='logfam';
+    sec.innerHTML=`<h3 class="famhead">${fname} <span class="famcount">answer: ${FAM[fid].short} · ${ph.length} photo${ph.length===1?'':'s'}</span></h3>
+      <p class="famtip"><b>Spot it by:</b> ${FAM[fid].tip}</p>
+      <p class="famvars">Variants: ${vs}</p>`;
+    const grid=document.createElement('div'); grid.className='myshots';
+    if(!ph.length) grid.innerHTML='<p class="note">No photo of this family yet. Send one and it joins the game.</p>';
+    ph.forEach(p=>{
+      const m=MODELS.find(x=>x.id===p.model), lg=rec.log[p.id];
+      const pos=`${(p.full.x/p.w*100).toFixed(1)}% ${(p.full.y/p.h*100).toFixed(1)}%`;
+      const recTxt= lg&&lg.seen ? `Identified ${lg.hit} of ${lg.seen}${lg.best!=null?' · fastest '+lg.best.toFixed(1)+' s':''}` : 'Not played yet';
+      grid.insertAdjacentHTML('beforeend',`<article class="shot">
+        <img src="${esc(p.src)}" alt="${esc((p.airline||'')+' '+(p.variant||m.name)+(p.reg?' '+p.reg:''))}" style="object-position:${pos}" loading="lazy">
+        <div class="lbody"><p class="lname">${esc(p.variant||m.name)} <span class="icao">${p.community?'Wall':(p.shared?'Shared':'Owner’s')}</span></p>
+        <p class="lmeta">${esc(p.airline||'Airline not given')}${p.reg?' · '+esc(p.reg):''}</p>
+        <p class="lmeta">${p.community?`Posted by ${esc(p.authorName||'a spotter')}${p.place?' · '+esc(p.place):''}${p.date?' · '+esc(p.date):''}`:(p.shared?'Photo: '+esc(p.credit||'unknown'):`${p.camera} · ${p.focal} mm · ${p.exif} · ${p.date}`)}</p>
+        <p class="lrec ${lg&&lg.seen?'has':''}">${recTxt}</p></div></article>`);
+    });
+    sec.appendChild(grid); wrap.appendChild(sec);
+  });
+}
+function openLog(){
+  logReturn = !$('endPanel').hidden ? 'endPanel' : 'startPanel';
+  renderLog(); show('logPanel'); window.scrollTo({top:0}); $('logBack').focus({preventScroll:true});
+}
+$('logBtn').addEventListener('click',openLog);
+$('logBack').addEventListener('click',()=>{ show(logReturn); if(logReturn==='startPanel') showBests(); });
+$('startBtn').addEventListener('click',startGame);
+$('dailyBtn').addEventListener('click',startDaily);
+function renderDaily(){
+  const k=dayKey(), done=rec.best['daily-'+k];
+  $('dailyDate').textContent=dayLabel(k);
+  $('dailyBtn').innerHTML= done==null ? 'Play today’s 5 <span class="arrow">→</span>' : 'Practice today’s 5 <span class="arrow">→</span>';
+  $('dailyNote').textContent= done==null ? 'Spotter level, 6 choices. Only your first try counts. New frames at midnight Japan time.'
+    : `You scored ${Number(done).toLocaleString()} today. Replays are practice only. New frames at midnight Japan time.`;
+}
+renderDaily();
+$('playTab').addEventListener('click',()=>{ if(mode==='play'||mode==='pick') return; if(location.hash==='#wall') history.replaceState(null,'',location.pathname+location.search); toStart(); });
+function updateStartSel(){ const g=GAMES[selectedGame()], d=DIFF[document.querySelector('input[name="diff"]:checked').value]; $('startSel').textContent=g.label+' · '+d.label; }
+document.querySelectorAll('input[name="game"],input[name="diff"]').forEach(i=>i.addEventListener('change',updateStartSel)); updateStartSel();
+
+/* ---------- spotters' wall ---------- */
+const wall={db:null,user:null,assets:null,uid:null,canEdit:false,posts:[],filter:'all',names:{},unsub:null,started:false,file:null,bmp:null,rot:0,busy:false};
+const FAM_IDS=FAMILIES.map(f=>f[0]);
+const esc = v => String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function wallMsg(t){ $('wallStatus').textContent=t; $('wallStatus').hidden=!t; }
+async function startWall(){
+  if(wall.started) return; wall.started=true;
+  if(!window.claude || !window.claude.use){ wallMsg('The wall is not connected yet.'); return; }
+  const [db,user,assets]=await Promise.all([claude.use('db'),claude.use('user'),claude.use('assets')]);
+  wall.db=db; wall.user=user; wall.assets=assets;
+  showWho(db,user);
+  if(!db){ wallMsg('The wall is not connected yet.'); boardMsg('The leaderboard is not connected yet.'); return; }
+  wall.uid= user? await user.id() : null;
+  wall.canEdit= user? await user.canEdit() : false;
+  wall.nicks={}; wall.nicksLoaded=false;
+  db.collection('players').onSnapshot(snap=>{
+    const m={}; snap.docs.forEach(d=>{ const n=(d.data()||{}).nick; if(typeof n==='string' && n.trim()) m[d.id]=n.trim().slice(0,20); });
+    wall.nicks=m; if(!snap.metadata.fromCache) wall.nicksLoaded=true;
+    renderWho(); maybeAskNick(); syncCommunity();
+    if(!$('wallPanel').hidden) renderWall(); if(!$('boardPanel').hidden) renderBoard();
+  }, ()=>{ wall.nicksLoaded=true; });
+  startBoard();
+  const sel=$('wfFam'); sel.innerHTML='<option value="">Choose…</option>'+FAMILIES.map(([id,n])=>`<option value="${id}">${esc(n)}</option>`).join('')+'<option value="unsure">Not sure</option>';
+  if(assets && wall.uid) $('wallForm').hidden=false;
+  wallMsg('Loading the wall…');
+  const timer=setTimeout(()=>wallMsg('The wall can’t be reached right now. It will appear when the connection comes back.'),10000);
+  wall.unsub=db.collection('wall').onSnapshot(snap=>{
+    if(!snap.metadata.fromCache){ clearTimeout(timer); }
+    const posts=[];
+    snap.docs.forEach(d=>{ const b=d.data()||{}; (Array.isArray(b.posts)?b.posts:[]).forEach(pt=>{ if(pt&&pt.asset&&pt.id) posts.push(Object.assign({},pt,{author:d.id})); }); });
+    posts.sort((a,b)=>(b.at||0)-(a.at||0));
+    wall.posts=posts; wallMsg(posts.length? '' : (wall.assets&&wall.uid? 'No photos yet. Post the first one above.' : 'No photos yet.'));
+    syncCommunity(); renderWall();
+  }, err=>{ clearTimeout(timer); wallMsg('The wall could not be loaded ('+(err&&err.code||'error')+').'); });
+  wall.accUnsub=db.doc('accepted/list').onSnapshot(snap=>{
+    const items=(snap.exists && (snap.data()||{}).items) || {};
+    wall.accepted=items; syncCommunity(); renderWall();
+  }, ()=>{});
+}
+function communityPhoto(pt, acc){
+  const fx=Number.isFinite(acc.fx)? acc.fx : 0.5, fy=Number.isFinite(acc.fy)? acc.fy : 0.5, picked=Number.isFinite(acc.fx);
+  return {id:'w-'+pt.id, src:'_blob/'+pt.asset, w:pt.w, h:pt.h, ow:pt.w, model:MODELS.find(m=>m.fam===pt.fam).id,
+    variant: pt.variant? `${FAM[pt.fam].name} (${pt.variant})` : FAM[pt.fam].name, airline:pt.airline, reg:pt.reg, place:pt.place, date:pt.date,
+    community:true, author:pt.author, authorName: pt.author===wall.uid? 'you' : nameOf(pt.author),
+    focus: picked? {detail:{x:fx*pt.w,y:fy*pt.h,w:pt.w*0.28}} : {middle:{x:pt.w/2,y:pt.h/2,w:pt.w*0.3}}, full:{x:pt.w/2,y:pt.h/2,w:pt.w}};
+}
+function syncCommunity(){
+  const acc=wall.accepted||{}, keep=new Set();
+  wall.posts.forEach(pt=>{
+    const a=acc[pt.id]; if(!a || a.author!==pt.author || !FAM_IDS.includes(pt.fam) || !pt.w || !pt.h) return;
+    keep.add(pt.id);
+    const fresh=communityPhoto(pt,a), old=COMMUNITY.get(pt.id);
+    if(old && old.src===fresh.src && JSON.stringify(old.focus)===JSON.stringify(fresh.focus) && old.fam===pt.fam){ old.authorName=fresh.authorName; return; }
+    fresh.fam=pt.fam; fresh.img=new Image(); fresh.ready=false;
+    fresh.img.onload=()=>{ fresh.ready=true; updatePhotoNote(); };
+    fresh.img.onerror=()=>{ fresh.failed=true; updatePhotoNote(); };
+    fresh.img.src=fresh.src; COMMUNITY.set(pt.id,fresh);
+  });
+  [...COMMUNITY.keys()].forEach(k=>{ if(!keep.has(k)) COMMUNITY.delete(k); });
+  updatePhotoNote();
+}
+async function writeAccepted(mutate){
+  const ref=wall.db.doc('accepted/list'), snap=await ref.get();
+  const items=Object.assign({}, (snap.exists && (snap.data()||{}).items) || {});
+  mutate(items);
+  await ref.set({items});
+}
+async function showWho(db,user){
+  const el=$('who'); el.hidden=false;
+  if(!db||!user){ el.classList.add('out'); $('whoName').textContent='Not signed in'; return; }
+  try{ const me=await user.me(); if(!me.id){ el.classList.add('out'); $('whoName').textContent='Not signed in'; return; }
+    el.classList.remove('out'); const pic=$('whoPic'); if(me.avatarUrl){ pic.hidden=false; pic.onerror=()=>{ pic.hidden=true; }; pic.src=me.avatarUrl; } else pic.hidden=true; wall.myName=me.name||''; renderWho(); }catch(e){ el.hidden=true; }
+}
+function nameOf(uid){ return (wall.nicks&&wall.nicks[uid]) || wall.names[uid] || 'A spotter'; }
+function renderWho(){
+  if(!wall.uid) return;
+  const nick=wall.nicks&&wall.nicks[wall.uid];
+  $('whoName').textContent=nick||wall.myName||'Spotter';
+  $('whoEdit').hidden=false;
+}
+let nickSkipped=false; try{ nickSkipped=sessionStorage.getItem('ll-nick-skip')==='1'; }catch(e){}
+function maybeAskNick(){
+  if(!wall.uid || !wall.nicksLoaded) return;
+  const nick=wall.nicks[wall.uid];
+  if(!nick && !nickSkipped && $('nickCard').hidden){ openNick(false); }
+}
+function openNick(editing){
+  $('nickCard').hidden=false; $('nickMsg').textContent='';
+  $('nickInput').value=(wall.nicks&&wall.nicks[wall.uid])||'';
+  $('nickLabel').textContent= editing? 'Change your spotter nickname.' : 'Welcome! Pick your spotter nickname. It shows on the leaderboard and on your wall photos.';
+  $('nickSkip').textContent= editing? 'Cancel' : 'Not now';
+  if(editing) $('nickInput').focus({preventScroll:true});
+}
+$('whoEdit').addEventListener('click',()=>openNick(true));
+$('nickSkip').addEventListener('click',()=>{ $('nickCard').hidden=true; nickSkipped=true; try{ sessionStorage.setItem('ll-nick-skip','1'); }catch(e){} });
+$('nickForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const v=$('nickInput').value.trim().replace(/\s+/g,' ');
+  if(!/^[\p{L}\p{N}][\p{L}\p{N} _.\-]{1,19}$/u.test(v)){ $('nickMsg').textContent='Use 2–20 letters or numbers (spaces, _ . - allowed), starting with a letter or number.'; return; }
+  const taken=Object.entries(wall.nicks||{}).some(([uid,n])=>uid!==wall.uid && String(n).toLowerCase()===v.toLowerCase());
+  if(taken){ $('nickMsg').textContent='Someone already uses “'+v+'”. Try another.'; return; }
+  $('nickSave').disabled=true; $('nickMsg').textContent='Saving…';
+  try{ await wall.db.doc('players/'+wall.uid).set({nick:v, at:Date.now()}); $('nickCard').hidden=true; }
+  catch(err){ $('nickMsg').textContent= err&&err.code==='not_granted' ? 'Sign in with Google first.' : 'Couldn’t save ('+(err&&err.code||'error')+'). Try again.'; }
+  $('nickSave').disabled=false;
+});
+async function resolveNames(ids){
+  if(!wall.user||!ids.length) return;
+  try{ const ps=await wall.user.profiles(ids); ids.forEach(id=>{ wall.names[id]=(ps[id]&&ps[id].name)||'A spotter'; }); }catch(e){}
+}
+async function renderWall(){
+  const ids=[...new Set(wall.posts.map(p=>p.author))];
+  await resolveNames(ids);
+  COMMUNITY.forEach(c=>{ c.authorName= c.author===wall.uid? 'you' : nameOf(c.author); });
+  const counts={}; wall.posts.forEach(p=>counts[p.fam]=(counts[p.fam]||0)+1);
+  const chips=[['all','All',wall.posts.length]].concat(FAMILIES.filter(([id])=>counts[id]).map(([id])=>[id,FAM[id].short,counts[id]]));
+  if(counts.unsure) chips.push(['unsure','Not sure',counts.unsure]);
+  if(!chips.some(c=>c[0]===wall.filter)) wall.filter='all';
+  $('wallChips').innerHTML=chips.map(([id,l,n])=>`<button type="button" class="chip" data-f="${id}" aria-pressed="${wall.filter===id}">${esc(l)} · ${n}</button>`).join('');
+  const list=wall.posts.filter(p=>wall.filter==='all'||p.fam===wall.filter);
+  const playable=list.filter(p=>FAM_IDS.includes(p.fam)&&p.w&&p.h);
+  $('wallPlay').hidden=!playable.length;
+  $('wallPlay').innerHTML=`Play ${playable.length===1?'this photo':'these '+playable.length+' photos'} <span class="arrow">→</span>`;
+  $('wallFeed').innerHTML=list.map(p=>{
+    const mine=p.author===wall.uid, f=FAM[p.fam], acc=(wall.accepted||{})[p.id], inGame=!!(acc&&acc.author===p.author);
+    const picking=wall.picking&&wall.picking.id===p.id;
+    const canAccept=wall.canEdit && f && p.w && p.h;
+    const marker=picking&&wall.picking.fx!=null ? `<span class="spot" style="left:${(wall.picking.dx*100).toFixed(1)}%;top:${(wall.picking.dy*100).toFixed(1)}%"></span>` : '';
+    return `<article class="shot${picking?' picking':''}" data-post="${esc(p.id)}">
+      <div class="shotpic">${inGame?'<span class="ingame">In the game</span>':''}<img src="_blob/${esc(p.asset)}" alt="${esc((p.airline||'')+' '+(p.variant||(f?f.name:'aircraft')))}" loading="lazy" ${picking?'data-pick="1"':''}>${marker}</div>
+      <div class="lbody">
+        ${picking?`<p class="picknote">Tap the photo where the lens should start (a nose, tail or engine), then confirm. Skip it to start from the middle.</p>
+          <div class="row" style="gap:8px"><button type="button" class="cta small" data-confirm="${esc(p.id)}">Confirm</button><button type="button" class="ghost" data-cancel="1">Cancel</button></div>`:''}
+        <p class="lname">${f?`<span class="famchip">${esc(f.short)}</span>`:'<span class="icao">Not sure</span>'} ${esc(p.variant||'')}</p>
+        <p class="lmeta">${esc(p.airline||'Airline not given')}${p.reg?' · '+esc(p.reg):''}</p>
+        ${(p.place||p.date)?`<p class="lmeta">${esc(p.place||'')}${p.place&&p.date?' · ':''}${esc(p.date||'')}</p>`:''}
+        ${p.caption?`<p class="cap">${esc(p.caption)}</p>`:''}
+        <p class="by"><span>by ${esc(mine?'you':nameOf(p.author))}</span>${(mine||wall.canEdit)?`<button type="button" class="linkbtn" data-del="${esc(p.id)}" data-author="${esc(p.author)}">${mine?'Delete':'Remove'}</button>`:''}</p>
+        ${canAccept&&!picking? (inGame? `<p class="by"><span>Accepted into the game</span><button type="button" class="linkbtn" data-unaccept="${esc(p.id)}">Take out of game</button></p>`
+          : `<button type="button" class="ghost acceptbtn" data-accept="${esc(p.id)}" data-author="${esc(p.author)}">Accept into the game</button>`) : ''}
+        ${!wall.canEdit && f && !inGame ? '<p class="lmeta">Waiting for the owner to accept it into the game</p>' : ''}
+      </div></article>`;
+  }).join('');
+}
+$('wallFeed').addEventListener('error',e=>{ if(e.target.tagName==='IMG') e.target.style.opacity='.15'; },true);
+$('wallChips').addEventListener('click',e=>{ const b=e.target.closest('.chip'); if(!b) return; wall.filter=b.dataset.f; renderWall(); });
+$('wallFeed').addEventListener('click',async e=>{
+  const t=e.target;
+  const acc=t.closest('[data-accept]');
+  if(acc){ wall.picking={id:acc.dataset.accept, author:acc.dataset.author, fx:null, fy:null}; renderWall(); return; }
+  if(t.closest('[data-cancel]')){ wall.picking=null; renderWall(); return; }
+  const img=t.closest('img[data-pick]');
+  if(img && wall.picking){
+    const r=img.getBoundingClientRect(), nw=img.naturalWidth||1, nh=img.naturalHeight||1;
+    const sc=Math.max(r.width/nw, r.height/nh), ox=(r.width-nw*sc)/2, oy=(r.height-nh*sc)/2;
+    const cx=e.clientX-r.left, cy=e.clientY-r.top;
+    wall.picking.fx=clamp((cx-ox)/(nw*sc),0.05,0.95); wall.picking.fy=clamp((cy-oy)/(nh*sc),0.05,0.95);
+    wall.picking.dx=cx/r.width; wall.picking.dy=cy/r.height; renderWall(); return;
+  }
+  const conf=t.closest('[data-confirm]');
+  if(conf && wall.picking){
+    const pk=wall.picking; conf.disabled=true; conf.textContent='Saving…';
+    try{ await writeAccepted(items=>{ items[pk.id]=Object.assign({author:pk.author, at:Date.now()}, pk.fx!=null? {fx:+pk.fx.toFixed(4), fy:+pk.fy.toFixed(4)} : {}); }); wall.picking=null; }
+    catch(err){ conf.disabled=false; conf.textContent='Couldn’t save ('+(err&&err.code||'error')+')'; return; }
+    renderWall(); return;
+  }
+  const un=t.closest('[data-unaccept]');
+  if(un){ un.disabled=true; try{ await writeAccepted(items=>{ delete items[un.dataset.unaccept]; }); }catch(err){ un.disabled=false; un.textContent='Couldn’t update'; } }
+});
+const pendingDel=new Set();
+$('wallFeed').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-del]'); if(!b) return;
+  const id=b.dataset.del, author=b.dataset.author;
+  if(!pendingDel.has(id)){ pendingDel.add(id); b.textContent='Tap again to confirm'; setTimeout(()=>{ pendingDel.delete(id); if(b.isConnected) b.textContent=author===wall.uid?'Delete':'Remove'; },4000); return; }
+  pendingDel.delete(id); b.disabled=true; b.textContent='Removing…';
+  try{
+    const ref=wall.db.doc('wall/'+author), snap=await ref.get(), body=snap.data()||{};
+    const post=(body.posts||[]).find(x=>x.id===id);
+    await ref.update({posts:(body.posts||[]).filter(x=>x.id!==id)});
+    if(wall.canEdit && wall.accepted && wall.accepted[id]){ try{ await writeAccepted(items=>{ delete items[id]; }); }catch(err){} }
+    if(post && wall.assets){ try{ await wall.assets.delete(post.asset); }catch(err){} }
+  }catch(err){ b.disabled=false; b.textContent='Couldn’t remove: '+(err&&err.code||'error'); }
+});
+
+/* photo intake: JPEG/PNG directly, RAW via its embedded full-size JPEG */
+const RAW_EXT=/\.(cr2|cr3|nef|arw|dng|raf|orf)$/i;
+function rawOrientation(u8){
+  let off=0;
+  const isTiff=(o)=>(u8[o]===0x49&&u8[o+1]===0x49&&u8[o+2]===0x2a)||(u8[o]===0x4d&&u8[o+1]===0x4d&&u8[o+3]===0x2a);
+  if(!isTiff(0)){ off=-1; for(let i=0;i<Math.min(u8.length-8,400000);i++){ if(u8[i]===0x43&&u8[i+1]===0x4d&&u8[i+2]===0x54&&u8[i+3]===0x31&&isTiff(i+4)){ off=i+4; break; } } if(off<0) return 1; }
+  const le=u8[off]===0x49, dv=new DataView(u8.buffer,u8.byteOffset+off);
+  try{ const ifd=dv.getUint32(4,le), n=dv.getUint16(ifd,le);
+    for(let i=0;i<n;i++){ const e=ifd+2+i*12; if(dv.getUint16(e,le)===0x112) return dv.getUint16(e+8,le); } }catch(e){}
+  return 1;
+}
+async function decodeRaw(file){
+  const buf=await file.arrayBuffer(), u8=new Uint8Array(buf);
+  let best=null, tries=0;
+  for(let i=0;i<u8.length-4 && tries<40;i++){
+    if(u8[i]===0xff&&u8[i+1]===0xd8&&u8[i+2]===0xff&&(u8[i+3]===0xdb||u8[i+3]===0xc4||u8[i+3]===0xe0||u8[i+3]===0xe1)){
+      tries++;
+      try{ const bmp=await createImageBitmap(new Blob([buf.slice(i)],{type:'image/jpeg'}));
+        if(!best||bmp.width*bmp.height>best.width*best.height){ if(best) best.close(); best=bmp; } else bmp.close(); }catch(e){}
+    }
+  }
+  if(!best) throw new Error('no preview');
+  const o=rawOrientation(u8);
+  return {bmp:best, rot: o===6?90 : o===3?180 : o===8?270 : 0};
+}
+function drawPreview(){
+  const c=$('wfCanvas'), b=wall.bmp; if(!b) return;
+  const MAX=2400, sc=Math.min(1,MAX/Math.max(b.width,b.height));
+  const w=Math.round(b.width*sc), h=Math.round(b.height*sc), sw=wall.rot%180? h:w, sh=wall.rot%180? w:h;
+  c.width=sw; c.height=sh; const x=c.getContext('2d');
+  x.save(); x.translate(sw/2,sh/2); x.rotate(wall.rot*Math.PI/180); x.drawImage(b,-w/2,-h/2,w,h); x.restore();
+  c.hidden=false; $('dropTxt').hidden=true;
+  $('wfInfo').textContent=`${sw} × ${sh} px, ready to post`;
+}
+function updatePostBtn(){ $('wfPost').disabled=!(wall.bmp && $('wfFam').value && $('wfMine').checked) || wall.busy; }
+$('wfFile').addEventListener('change',async e=>{
+  const file=e.target.files&&e.target.files[0]; if(!file) return;
+  $('wfMsg').textContent=''; $('wfInfo').textContent='Reading the photo…';
+  try{
+    if(wall.bmp){ wall.bmp.close(); wall.bmp=null; }
+    if(RAW_EXT.test(file.name) || !/^image\//.test(file.type)){ const r=await decodeRaw(file); wall.bmp=r.bmp; wall.rot=r.rot; }
+    else { wall.bmp=await createImageBitmap(file); wall.rot=0; }
+    $('wfRotate').disabled=false; drawPreview();
+  }catch(err){ $('wfInfo').textContent='That file could not be read. Try a JPEG export of the photo.'; }
+  updatePostBtn();
+});
+$('wfRotate').addEventListener('click',()=>{ wall.rot=(wall.rot+90)%360; drawPreview(); });
+$('wfFam').addEventListener('change',updatePostBtn);
+$('wfMine').addEventListener('change',updatePostBtn);
+
+/* airport search for the wall form: IATA|ICAO|name|city|country|other names */
+const AIRPORTS_RAW=`HND|RJTT|Tokyo Haneda|Tokyo|Japan|羽田 haneda
+NRT|RJAA|Narita International|Tokyo|Japan|成田
+KIX|RJBB|Kansai International|Osaka|Japan|関西 kanku
+ITM|RJOO|Osaka Itami|Osaka|Japan|伊丹 itami
+UKB|RJBE|Kobe|Kobe|Japan|神戸
+NGO|RJGG|Chubu Centrair|Nagoya|Japan|中部 セントレア
+NKM|RJNA|Nagoya Komaki|Nagoya|Japan|小牧
+CTS|RJCC|New Chitose|Sapporo|Japan|新千歳 chitose
+OKD|RJCO|Sapporo Okadama|Sapporo|Japan|丘珠
+FUK|RJFF|Fukuoka|Fukuoka|Japan|福岡
+OKA|ROAH|Naha|Okinawa|Japan|那覇
+SDJ|RJSS|Sendai|Sendai|Japan|仙台
+HIJ|RJOA|Hiroshima|Hiroshima|Japan|広島
+KOJ|RJFK|Kagoshima|Kagoshima|Japan|鹿児島
+KMJ|RJFT|Kumamoto|Kumamoto|Japan|熊本
+NGS|RJFU|Nagasaki|Nagasaki|Japan|長崎
+OIT|RJFO|Oita|Oita|Japan|大分
+KMI|RJFM|Miyazaki|Miyazaki|Japan|宮崎
+HSG|RJFS|Saga|Saga|Japan|佐賀
+KKJ|RJFR|Kitakyushu|Kitakyushu|Japan|北九州
+UBJ|RJDC|Yamaguchi Ube|Ube|Japan|山口宇部
+MYJ|RJOM|Matsuyama|Matsuyama|Japan|松山
+TAK|RJOT|Takamatsu|Takamatsu|Japan|高松
+KCZ|RJOK|Kochi Ryoma|Kochi|Japan|高知
+TKS|RJOS|Tokushima|Tokushima|Japan|徳島
+OKJ|RJOB|Okayama|Okayama|Japan|岡山
+IZO|RJOC|Izumo|Izumo|Japan|出雲
+YGJ|RJOH|Yonago|Yonago|Japan|米子
+TTJ|RJOR|Tottori|Tottori|Japan|鳥取
+IWJ|RJOW|Iwami|Masuda|Japan|石見
+SHM|RJBD|Nanki-Shirahama|Shirahama|Japan|南紀白浜
+KMQ|RJNK|Komatsu|Komatsu|Japan|小松
+TOY|RJNT|Toyama|Toyama|Japan|富山
+NTQ|RJNW|Noto|Wajima|Japan|能登
+KIJ|RJSN|Niigata|Niigata|Japan|新潟
+MMJ|RJAF|Matsumoto|Matsumoto|Japan|松本 shinshu
+FSZ|RJNS|Mt. Fuji Shizuoka|Shizuoka|Japan|静岡 fuji
+IBR|RJAH|Ibaraki|Omitama|Japan|茨城 hyakuri
+FKS|RJSF|Fukushima|Sukagawa|Japan|福島
+GAJ|RJSC|Yamagata|Yamagata|Japan|山形
+SYO|RJSY|Shonai|Sakata|Japan|庄内
+AXT|RJSK|Akita|Akita|Japan|秋田
+HNA|RJSI|Iwate Hanamaki|Hanamaki|Japan|花巻
+MSJ|RJSM|Misawa|Misawa|Japan|三沢
+AOJ|RJSA|Aomori|Aomori|Japan|青森
+HKD|RJCH|Hakodate|Hakodate|Japan|函館
+AKJ|RJEC|Asahikawa|Asahikawa|Japan|旭川
+KUH|RJCK|Kushiro|Kushiro|Japan|釧路 tancho
+OBO|RJCB|Tokachi-Obihiro|Obihiro|Japan|帯広
+MMB|RJCM|Memanbetsu|Ozora|Japan|女満別
+SHB|RJCN|Nakashibetsu|Nakashibetsu|Japan|中標津
+WKJ|RJCW|Wakkanai|Wakkanai|Japan|稚内
+ISG|ROIG|New Ishigaki|Ishigaki|Japan|石垣
+MMY|ROMY|Miyako|Miyakojima|Japan|宮古
+SHI|RORS|Shimojishima|Miyakojima|Japan|下地島
+ASJ|RJKA|Amami|Amami|Japan|奄美
+UEO|ROKJ|Kumejima|Kumejima|Japan|久米島
+OKO|RJTY|Yokota Air Base|Fussa|Japan|横田
+ICN|RKSI|Incheon International|Seoul|South Korea|인천
+GMP|RKSS|Gimpo International|Seoul|South Korea|김포
+PUS|RKPK|Gimhae International|Busan|South Korea|김해
+CJU|RKPC|Jeju International|Jeju|South Korea|제주
+PEK|ZBAA|Beijing Capital|Beijing|China|首都
+PKX|ZBAD|Beijing Daxing|Beijing|China|大兴
+PVG|ZSPD|Shanghai Pudong|Shanghai|China|浦东
+SHA|ZSSS|Shanghai Hongqiao|Shanghai|China|虹桥
+CAN|ZGGG|Guangzhou Baiyun|Guangzhou|China|白云
+SZX|ZGSZ|Shenzhen Bao'an|Shenzhen|China|宝安
+CTU|ZUUU|Chengdu Shuangliu|Chengdu|China|双流
+TFU|ZUTF|Chengdu Tianfu|Chengdu|China|天府
+HKG|VHHH|Hong Kong International|Hong Kong|Hong Kong|chek lap kok
+MFM|VMMC|Macau International|Macau|Macau|澳門
+TPE|RCTP|Taoyuan International|Taipei|Taiwan|桃園
+TSA|RCSS|Taipei Songshan|Taipei|Taiwan|松山
+KHH|RCKH|Kaohsiung International|Kaohsiung|Taiwan|高雄
+MNL|RPLL|Ninoy Aquino International|Manila|Philippines|naia
+CEB|RPVM|Mactan-Cebu|Cebu|Philippines|
+SIN|WSSS|Changi|Singapore|Singapore|
+KUL|WMKK|Kuala Lumpur International|Kuala Lumpur|Malaysia|klia
+BKK|VTBS|Suvarnabhumi|Bangkok|Thailand|
+DMK|VTBD|Don Mueang|Bangkok|Thailand|
+HKT|VTSP|Phuket International|Phuket|Thailand|
+CGK|WIII|Soekarno-Hatta|Jakarta|Indonesia|
+DPS|WADD|Ngurah Rai|Denpasar|Indonesia|bali
+SGN|VVTS|Tan Son Nhat|Ho Chi Minh City|Vietnam|saigon
+HAN|VVNB|Noi Bai|Hanoi|Vietnam|
+DAD|VVDN|Da Nang International|Da Nang|Vietnam|
+DEL|VIDP|Indira Gandhi International|Delhi|India|
+BOM|VABB|Chhatrapati Shivaji Maharaj|Mumbai|India|
+BLR|VOBL|Kempegowda International|Bengaluru|India|bangalore
+MAA|VOMM|Chennai International|Chennai|India|
+CMB|VCBI|Bandaranaike International|Colombo|Sri Lanka|
+KTM|VNKT|Tribhuvan International|Kathmandu|Nepal|
+DAC|VGHS|Hazrat Shahjalal|Dhaka|Bangladesh|
+DXB|OMDB|Dubai International|Dubai|UAE|
+DWC|OMDW|Al Maktoum International|Dubai|UAE|dubai world central
+AUH|OMAA|Zayed International|Abu Dhabi|UAE|
+DOH|OTHH|Hamad International|Doha|Qatar|
+BAH|OBBI|Bahrain International|Manama|Bahrain|
+KWI|OKKK|Kuwait International|Kuwait City|Kuwait|
+RUH|OERK|King Khalid International|Riyadh|Saudi Arabia|
+JED|OEJN|King Abdulaziz International|Jeddah|Saudi Arabia|
+MCT|OOMS|Muscat International|Muscat|Oman|
+IKA|OIIE|Imam Khomeini International|Tehran|Iran|
+TLV|LLBG|Ben Gurion|Tel Aviv|Israel|
+AMM|OJAI|Queen Alia International|Amman|Jordan|
+IST|LTFM|Istanbul|Istanbul|Turkey|
+SAW|LTFJ|Sabiha Gökçen|Istanbul|Turkey|sabiha gokcen
+CAI|HECA|Cairo International|Cairo|Egypt|
+LHR|EGLL|London Heathrow|London|United Kingdom|
+LGW|EGKK|London Gatwick|London|United Kingdom|
+STN|EGSS|London Stansted|London|United Kingdom|
+LTN|EGGW|London Luton|London|United Kingdom|
+MAN|EGCC|Manchester|Manchester|United Kingdom|
+EDI|EGPH|Edinburgh|Edinburgh|United Kingdom|
+DUB|EIDW|Dublin|Dublin|Ireland|
+CDG|LFPG|Paris Charles de Gaulle|Paris|France|roissy
+ORY|LFPO|Paris Orly|Paris|France|
+NCE|LFMN|Nice Côte d'Azur|Nice|France|cote d'azur
+AMS|EHAM|Amsterdam Schiphol|Amsterdam|Netherlands|polderbaan
+BRU|EBBR|Brussels|Brussels|Belgium|zaventem
+FRA|EDDF|Frankfurt|Frankfurt|Germany|
+MUC|EDDM|Munich|Munich|Germany|münchen
+BER|EDDB|Berlin Brandenburg|Berlin|Germany|
+HAM|EDDH|Hamburg|Hamburg|Germany|
+DUS|EDDL|Düsseldorf|Düsseldorf|Germany|dusseldorf
+ZRH|LSZH|Zurich|Zurich|Switzerland|zürich kloten
+GVA|LSGG|Geneva|Geneva|Switzerland|genève
+VIE|LOWW|Vienna|Vienna|Austria|schwechat
+MAD|LEMD|Madrid-Barajas|Madrid|Spain|barajas
+BCN|LEBL|Barcelona-El Prat|Barcelona|Spain|el prat
+PMI|LEPA|Palma de Mallorca|Palma|Spain|mallorca
+LIS|LPPT|Lisbon Humberto Delgado|Lisbon|Portugal|lisboa
+FCO|LIRF|Rome Fiumicino|Rome|Italy|leonardo da vinci
+MXP|LIMC|Milan Malpensa|Milan|Italy|
+CPH|EKCH|Copenhagen|Copenhagen|Denmark|kastrup
+ARN|ESSA|Stockholm Arlanda|Stockholm|Sweden|
+OSL|ENGM|Oslo Gardermoen|Oslo|Norway|
+HEL|EFHK|Helsinki-Vantaa|Helsinki|Finland|
+WAW|EPWA|Warsaw Chopin|Warsaw|Poland|
+PRG|LKPR|Václav Havel Prague|Prague|Czechia|praha
+BUD|LHBP|Budapest Ferenc Liszt|Budapest|Hungary|
+ATH|LGAV|Athens International|Athens|Greece|
+SVO|UUEE|Sheremetyevo|Moscow|Russia|
+DME|UUDD|Domodedovo|Moscow|Russia|
+VKO|UUWW|Vnukovo|Moscow|Russia|
+LED|ULLI|Pulkovo|Saint Petersburg|Russia|
+MSQ|UMMS|Minsk National|Minsk|Belarus|
+KEF|BIKF|Keflavík International|Reykjavík|Iceland|keflavik
+SXM|TNCM|Princess Juliana|Sint Maarten|Sint Maarten|maho beach
+ATL|KATL|Hartsfield-Jackson Atlanta|Atlanta|USA|
+LAX|KLAX|Los Angeles International|Los Angeles|USA|
+ORD|KORD|Chicago O'Hare|Chicago|USA|ohare
+DFW|KDFW|Dallas Fort Worth|Dallas|USA|
+DEN|KDEN|Denver International|Denver|USA|
+JFK|KJFK|John F. Kennedy International|New York|USA|kennedy
+EWR|KEWR|Newark Liberty|Newark|USA|
+LGA|KLGA|LaGuardia|New York|USA|
+SFO|KSFO|San Francisco International|San Francisco|USA|
+SEA|KSEA|Seattle-Tacoma|Seattle|USA|seatac
+LAS|KLAS|Harry Reid International|Las Vegas|USA|
+MCO|KMCO|Orlando International|Orlando|USA|
+MIA|KMIA|Miami International|Miami|USA|
+BOS|KBOS|Boston Logan|Boston|USA|
+IAD|KIAD|Washington Dulles|Washington|USA|
+DCA|KDCA|Ronald Reagan Washington National|Washington|USA|
+IAH|KIAH|Houston George Bush Intercontinental|Houston|USA|
+PHX|KPHX|Phoenix Sky Harbor|Phoenix|USA|
+MSP|KMSP|Minneapolis-Saint Paul|Minneapolis|USA|
+DTW|KDTW|Detroit Metropolitan|Detroit|USA|
+PHL|KPHL|Philadelphia International|Philadelphia|USA|
+CLT|KCLT|Charlotte Douglas|Charlotte|USA|
+SAN|KSAN|San Diego International|San Diego|USA|
+ANC|PANC|Ted Stevens Anchorage|Anchorage|USA|
+HNL|PHNL|Daniel K. Inouye International|Honolulu|USA|hawaii
+OGG|PHOG|Kahului|Maui|USA|hawaii
+GUM|PGUM|Antonio B. Won Pat International|Guam|Guam|
+YYZ|CYYZ|Toronto Pearson|Toronto|Canada|
+YVR|CYVR|Vancouver International|Vancouver|Canada|
+YUL|CYUL|Montréal-Trudeau|Montreal|Canada|montreal
+YYC|CYYC|Calgary International|Calgary|Canada|
+MEX|MMMX|Mexico City International|Mexico City|Mexico|benito juarez
+CUN|MMUN|Cancún International|Cancún|Mexico|cancun
+PTY|MPTO|Tocumen International|Panama City|Panama|
+BOG|SKBO|El Dorado International|Bogotá|Colombia|bogota
+LIM|SPJC|Jorge Chávez International|Lima|Peru|
+GRU|SBGR|São Paulo-Guarulhos|São Paulo|Brazil|sao paulo guarulhos
+GIG|SBGL|Rio de Janeiro-Galeão|Rio de Janeiro|Brazil|galeao
+EZE|SAEZ|Ministro Pistarini (Ezeiza)|Buenos Aires|Argentina|ezeiza
+SCL|SCEL|Arturo Merino Benítez|Santiago|Chile|
+JNB|FAOR|O. R. Tambo International|Johannesburg|South Africa|
+CPT|FACT|Cape Town International|Cape Town|South Africa|
+ADD|HAAB|Addis Ababa Bole|Addis Ababa|Ethiopia|
+NBO|HKJK|Jomo Kenyatta International|Nairobi|Kenya|
+LOS|DNMM|Murtala Muhammed International|Lagos|Nigeria|
+CMN|GMMN|Mohammed V International|Casablanca|Morocco|
+SYD|YSSY|Sydney Kingsford Smith|Sydney|Australia|
+MEL|YMML|Melbourne Tullamarine|Melbourne|Australia|
+BNE|YBBN|Brisbane|Brisbane|Australia|
+PER|YPPH|Perth|Perth|Australia|
+AKL|NZAA|Auckland|Auckland|New Zealand|
+CHC|NZCH|Christchurch|Christchurch|New Zealand|
+NAN|NFFN|Nadi International|Nadi|Fiji|`;
+const AIRPORTS=AIRPORTS_RAW.split('\n').map(l=>{ const [iata,icao,name,city,country,alt]=l.split('|'); return {iata,icao,name,city,country,alt:alt||''}; });
+const fold = t => String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+function searchAirports(q){
+  q=fold(q.trim()); if(!q) return [];
+  const out=[];
+  AIRPORTS.forEach(a=>{
+    const name=fold(a.name), city=fold(a.city), alt=fold(a.alt), country=fold(a.country);
+    let sc=0;
+    if(fold(a.iata)===q||fold(a.icao)===q) sc=100;
+    else if(name.startsWith(q)||city.startsWith(q)) sc=80;
+    else if(name.split(/[\s\-'().]+/).some(w=>w.startsWith(q))||alt.split(/\s+/).some(w=>w.startsWith(q))) sc=70;
+    else if(fold(a.iata).startsWith(q)||fold(a.icao).startsWith(q)) sc=60;
+    else if(name.includes(q)||city.includes(q)||alt.includes(q)) sc=40;
+    else if(country.startsWith(q)) sc=20;
+    if(sc) out.push({a,sc});
+  });
+  out.sort((x,y)=>y.sc-x.sc||(x.a.country==='Japan'?-1:0)-(y.a.country==='Japan'?-1:0)||x.a.name.localeCompare(y.a.name));
+  return out.slice(0,8).map(o=>o.a);
+}
+function hilite(text,q){
+  const t=String(text), f=fold(t), i=q? f.indexOf(fold(q.trim())) : -1;
+  if(i<0||!q.trim()) return esc(t);
+  const n=q.trim().length; return esc(t.slice(0,i))+'<mark>'+esc(t.slice(i,i+n))+'</mark>'+esc(t.slice(i+n));
+}
+
+/* generic type-ahead for the wall form */
+function makeCombo({input, search, pick, openOnFocus}){
+  const inp=$(input), ul=$(input+'List'), st={list:[],idx:-1};
+  function close(){ ul.hidden=true; st.idx=-1; inp.setAttribute('aria-expanded','false'); inp.removeAttribute('aria-activedescendant'); }
+  function render(){
+    const q=inp.value;
+    if(!q.trim() && !openOnFocus){ close(); return; }
+    st.list=search(q);
+    if(!st.list.length && !q.trim()){ close(); return; }
+    ul.innerHTML= st.list.length ? st.list.map((it,i)=>`<li role="option" id="${input}-o${i}" data-i="${i}" aria-selected="${i===st.idx}"><span class="code ${it.kind||''}">${esc(it.code)}</span><span class="apn">${hilite(it.main,q)}</span><span class="apm">${hilite(it.sub,q)}</span></li>`).join('')
+      : '<li class="none" role="option" aria-disabled="true">No match. You can still type your own.</li>';
+    ul.hidden=false; inp.setAttribute('aria-expanded','true');
+    if(st.idx>=0) inp.setAttribute('aria-activedescendant',`${input}-o${st.idx}`); else inp.removeAttribute('aria-activedescendant');
+    const act=ul.querySelector('[aria-selected="true"]'); if(act) act.scrollIntoView({block:'nearest'});
+  }
+  function choose(i){ const it=st.list[i]; if(!it) return; inp.value=it.value; close(); pick&&pick(it); if(it.keepOpen){ inp.focus(); render(); } }
+  inp.addEventListener('input',()=>{ st.idx=-1; render(); });
+  inp.addEventListener('focus',()=>{ if(openOnFocus || inp.value.trim()) render(); });
+  inp.addEventListener('keydown',e=>{
+    if(ul.hidden || !st.list.length) return;
+    if(e.key==='ArrowDown'){ e.preventDefault(); st.idx=(st.idx+1)%st.list.length; render(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); st.idx=(st.idx-1+st.list.length)%st.list.length; render(); }
+    else if(e.key==='Enter'){ if(st.idx>=0){ e.preventDefault(); choose(st.idx); } }
+    else if(e.key==='Escape'){ close(); }
+  });
+  ul.addEventListener('mousedown',e=>{ const li=e.target.closest('li[data-i]'); if(!li) return; e.preventDefault(); choose(+li.dataset.i); });
+  inp.addEventListener('blur',()=>setTimeout(close,120));
+  return {render,close};
+}
+const looks = (hay,q) => hay.some(h=>{ const f=fold(h); return f===q ? 100 : 0; });
+function scoreFields(q, exact, words, any){
+  q=fold(q.trim()); if(!q) return 0;
+  if(exact.some(x=>fold(x)===q)) return 100;
+  if(words.some(x=>fold(x).startsWith(q))) return 80;
+  if(words.some(x=>fold(x).split(/[\s\-'().\/]+/).some(w=>w.startsWith(q)))) return 70;
+  if(exact.some(x=>fold(x).startsWith(q))) return 60;
+  if(any.some(x=>fold(x).includes(q))) return 40;
+  return 0;
+}
+
+/* airports */
+makeCombo({input:'wfPlace', search:q=>searchAirports(q).map(a=>({code:a.iata, main:a.name, sub:`${a.city}, ${a.country} · ${a.icao}`, value:`${a.name} (${a.iata})`}))});
+
+/* airlines: IATA|ICAO|name|country|other names */
+const AIRLINES_RAW=`JL|JAL|Japan Airlines|Japan|日本航空 jal
+NH|ANA|All Nippon Airways|Japan|全日空 ana
+MM|APJ|Peach Aviation|Japan|ピーチ peach
+GK|JJP|Jetstar Japan|Japan|ジェットスター
+BC|SKY|Skymark Airlines|Japan|スカイマーク
+7G|SFJ|StarFlyer|Japan|スターフライヤー
+6J|SNJ|Solaseed Air|Japan|ソラシドエア
+HD|ADO|Air Do|Japan|エア・ドゥ airdo
+NU|JTA|Japan Transocean Air|Japan|日本トランスオーシャン航空
+XM|JLJ|J-Air|Japan|ジェイエア
+FW|IBX|IBEX Airlines|Japan|アイベックス
+JH|FDA|Fuji Dream Airlines|Japan|フジドリームエアラインズ
+OC|ORC|Oriental Air Bridge|Japan|オリエンタルエアブリッジ
+IJ|SJO|Spring Japan|Japan|スプリング・ジャパン
+ZG|TZP|ZIPAIR Tokyo|Japan|ジップエア zipair
+NQ|AJX|Air Japan|Japan|エアージャパン
+KZ|NCA|Nippon Cargo Airlines|Japan|日本貨物航空
+KE|KAL|Korean Air|South Korea|대한항공
+OZ|AAR|Asiana Airlines|South Korea|아시아나
+7C|JJA|Jeju Air|South Korea|제주항공
+LJ|JNA|Jin Air|South Korea|진에어
+TW|TWB|T'way Air|South Korea|티웨이 tway
+BX|ABL|Air Busan|South Korea|에어부산
+RS|ASV|Air Seoul|South Korea|에어서울
+CA|CCA|Air China|China|中国国际航空
+MU|CES|China Eastern Airlines|China|东方航空
+CZ|CSN|China Southern Airlines|China|南方航空
+HU|CHH|Hainan Airlines|China|海南航空
+3U|CSC|Sichuan Airlines|China|四川航空
+MF|CXA|Xiamen Airlines|China|厦门航空
+FM|CSH|Shanghai Airlines|China|上海航空
+ZH|CSZ|Shenzhen Airlines|China|深圳航空
+9C|CQH|Spring Airlines|China|春秋航空
+HO|DKH|Juneyao Air|China|吉祥航空
+CX|CPA|Cathay Pacific|Hong Kong|國泰
+UO|HKE|HK Express|Hong Kong|
+HX|CRK|Hong Kong Airlines|Hong Kong|
+NX|AMU|Air Macau|Macau|澳門航空
+CI|CAL|China Airlines|Taiwan|中華航空
+BR|EVA|EVA Air|Taiwan|長榮航空
+JX|SJX|Starlux Airlines|Taiwan|星宇航空
+IT|TTW|Tigerair Taiwan|Taiwan|
+SQ|SIA|Singapore Airlines|Singapore|
+TR|TGW|Scoot|Singapore|
+MH|MAS|Malaysia Airlines|Malaysia|
+AK|AXM|AirAsia|Malaysia|air asia
+D7|XAX|AirAsia X|Malaysia|air asia x
+FY|FFM|Firefly|Malaysia|
+TG|THA|Thai Airways|Thailand|
+FD|AIQ|Thai AirAsia|Thailand|
+PG|BKP|Bangkok Airways|Thailand|
+VN|HVN|Vietnam Airlines|Vietnam|
+VJ|VJC|VietJet Air|Vietnam|vietjet
+QH|BAV|Bamboo Airways|Vietnam|
+PR|PAL|Philippine Airlines|Philippines|
+5J|CEB|Cebu Pacific|Philippines|
+GA|GIA|Garuda Indonesia|Indonesia|
+JT|LNI|Lion Air|Indonesia|
+BI|RBA|Royal Brunei Airlines|Brunei|
+AI|AIC|Air India|India|
+6E|IGO|IndiGo|India|
+UL|ALK|SriLankan Airlines|Sri Lanka|
+PK|PIA|Pakistan International Airlines|Pakistan|pia
+BG|BBC|Biman Bangladesh Airlines|Bangladesh|
+EK|UAE|Emirates|UAE|
+EY|ETD|Etihad Airways|UAE|
+FZ|FDB|flydubai|UAE|fly dubai
+QR|QTR|Qatar Airways|Qatar|
+GF|GFA|Gulf Air|Bahrain|
+SV|SVA|Saudia|Saudi Arabia|saudi arabian airlines
+XY|KNE|flynas|Saudi Arabia|
+WY|OMA|Oman Air|Oman|
+KU|KAC|Kuwait Airways|Kuwait|
+RJ|RJA|Royal Jordanian|Jordan|
+LY|ELY|El Al|Israel|
+TK|THY|Turkish Airlines|Turkey|türk hava yollari
+PC|PGT|Pegasus Airlines|Turkey|
+W5|IRM|Mahan Air|Iran|
+IR|IRA|Iran Air|Iran|
+MS|MSR|EgyptAir|Egypt|egypt air
+LH|DLH|Lufthansa|Germany|
+EW|EWG|Eurowings|Germany|
+DE|CFG|Condor|Germany|
+LX|SWR|Swiss International Air Lines|Switzerland|swiss
+OS|AUA|Austrian Airlines|Austria|
+SN|BEL|Brussels Airlines|Belgium|
+BA|BAW|British Airways|United Kingdom|
+VS|VIR|Virgin Atlantic|United Kingdom|
+U2|EZY|easyJet|United Kingdom|easy jet
+FR|RYR|Ryanair|Ireland|
+EI|EIN|Aer Lingus|Ireland|
+AF|AFR|Air France|France|
+KL|KLM|KLM Royal Dutch Airlines|Netherlands|klm
+WA|KLC|KLM Cityhopper|Netherlands|
+IB|IBE|Iberia|Spain|
+VY|VLG|Vueling|Spain|
+UX|AEA|Air Europa|Spain|
+TP|TAP|TAP Air Portugal|Portugal|
+AZ|ITY|ITA Airways|Italy|
+SK|SAS|SAS Scandinavian Airlines|Sweden|sas
+AY|FIN|Finnair|Finland|
+DY|NAX|Norwegian|Norway|norwegian air shuttle
+LO|LOT|LOT Polish Airlines|Poland|
+W6|WZZ|Wizz Air|Hungary|
+A3|AEE|Aegean Airlines|Greece|
+FI|ICE|Icelandair|Iceland|
+LG|LGL|Luxair|Luxembourg|
+CV|CLX|Cargolux|Luxembourg|
+SU|AFL|Aeroflot|Russia|
+B2|BRU|Belavia|Belarus|
+AA|AAL|American Airlines|USA|
+DL|DAL|Delta Air Lines|USA|delta
+UA|UAL|United Airlines|USA|united
+WN|SWA|Southwest Airlines|USA|
+AS|ASA|Alaska Airlines|USA|
+HA|HAL|Hawaiian Airlines|USA|
+B6|JBU|JetBlue|USA|jet blue
+NK|NKS|Spirit Airlines|USA|
+F9|FFT|Frontier Airlines|USA|
+G4|AAY|Allegiant Air|USA|
+FX|FDX|FedEx Express|USA|fedex
+5X|UPS|UPS Airlines|USA|
+5Y|GTI|Atlas Air|USA|
+K4|CKS|Kalitta Air|USA|
+PO|PAC|Polar Air Cargo|USA|
+AC|ACA|Air Canada|Canada|
+WS|WJA|WestJet|Canada|
+AM|AMX|Aeroméxico|Mexico|aeromexico
+Y4|VOI|Volaris|Mexico|
+CM|CMP|Copa Airlines|Panama|
+AV|AVA|Avianca|Colombia|
+LA|LAN|LATAM Airlines|Chile|latam
+G3|GLO|Gol|Brazil|gol linhas aereas
+AD|AZU|Azul|Brazil|
+AR|ARG|Aerolíneas Argentinas|Argentina|aerolineas argentinas
+ET|ETH|Ethiopian Airlines|Ethiopia|
+KQ|KQA|Kenya Airways|Kenya|
+SA|SAA|South African Airways|South Africa|
+AT|RAM|Royal Air Maroc|Morocco|
+QF|QFA|Qantas|Australia|
+JQ|JST|Jetstar Airways|Australia|jetstar
+VA|VOZ|Virgin Australia|Australia|
+NZ|ANZ|Air New Zealand|New Zealand|
+FJ|FJI|Fiji Airways|Fiji|`;
+const AIRLINE_LIST=AIRLINES_RAW.split('\n').map(l=>{ const [iata,icao,name,country,alt]=l.split('|'); return {iata,icao,name,country,alt:alt||''}; });
+makeCombo({input:'wfAir', search:q=>{
+  const r=[]; AIRLINE_LIST.forEach(a=>{ const sc=scoreFields(q,[a.iata,a.icao],[a.name,a.alt],[a.name,a.alt,a.country]); if(sc) r.push({a,sc}); });
+  r.sort((x,y)=>y.sc-x.sc||x.a.name.localeCompare(y.a.name));
+  return r.slice(0,8).map(({a})=>({code:a.iata, main:a.name, sub:`${a.country} · ${a.icao}`, value:a.name}));
+}});
+
+/* variants (picking one also sets the family) */
+makeCombo({input:'wfVar', openOnFocus:true, search:q=>{
+  const fam=$('wfFam').value, qq=q.trim();
+  let list=MODELS.map(m=>({m,sc: qq? scoreFields(qq,[m.icao,m.short],[m.name,m.short,FAM[m.fam].short],[m.name,m.short,m.icao]) : (m.fam===fam?50:0)}));
+  if(qq && fam && FAM_IDS.includes(fam)) list.forEach(x=>{ if(x.sc && x.m.fam===fam) x.sc+=15; });
+  list=list.filter(x=>x.sc).sort((a,b)=>b.sc-a.sc||a.m.name.localeCompare(b.m.name));
+  return list.slice(0,8).map(({m})=>({code:FAM[m.fam].short, kind:'fam', main:m.name, sub:`${FAM[m.fam].name} family · ${m.icao}`, value:m.short, fam:m.fam}));
+}, pick:it=>{ if(it.fam && $('wfFam').value!==it.fam){ $('wfFam').value=it.fam; updatePostBtn(); } }});
+
+/* registrations: ones already known to the game and the wall, plus country prefixes */
+const REG_PREFIX=[['JA','Japan'],['N','USA'],['B-','China, Hong Kong, Macau or Taiwan'],['HL','South Korea'],['A6-','UAE'],['A7-','Qatar'],['A9C-','Bahrain'],['A4O-','Oman'],['HZ-','Saudi Arabia'],['9K-','Kuwait'],['4X-','Israel'],['EP-','Iran'],['TC-','Turkey'],
+  ['9V-','Singapore'],['9M-','Malaysia'],['HS-','Thailand'],['VN-','Vietnam'],['RP-','Philippines'],['PK-','Indonesia'],['VT-','India'],['4R-','Sri Lanka'],['AP-','Pakistan'],['S2-','Bangladesh'],
+  ['D-','Germany'],['G-','United Kingdom'],['F-','France'],['PH-','Netherlands'],['OO-','Belgium'],['HB-','Switzerland'],['OE-','Austria'],['EI-','Ireland'],['EC-','Spain'],['CS-','Portugal'],['I-','Italy'],['SE-','Sweden'],['LN-','Norway'],['OH-','Finland'],['OY-','Denmark'],['TF-','Iceland'],['SP-','Poland'],['OK-','Czechia'],['HA-','Hungary'],['SX-','Greece'],['LX-','Luxembourg'],['RA-','Russia'],['EW-','Belarus'],['9H-','Malta'],
+  ['C-','Canada'],['XA-','Mexico'],['HP-','Panama'],['HK-','Colombia'],['PR-','Brazil'],['PP-','Brazil'],['PS-','Brazil'],['LV-','Argentina'],['CC-','Chile'],['OB-','Peru'],
+  ['ET-','Ethiopia'],['5Y-','Kenya'],['ZS-','South Africa'],['CN-','Morocco'],['SU-','Egypt'],['VH-','Australia'],['ZK-','New Zealand'],['DQ-','Fiji']];
+function knownRegs(){
+  const m=new Map();
+  PHOTOS.forEach(p=>{ if(p.reg) m.set(p.reg.toUpperCase(),{reg:p.reg.toUpperCase(), airline:p.airline, variant:(p.variant||MODELS.find(x=>x.id===p.model).name), fam:MODELS.find(x=>x.id===p.model).fam, src:'in the game'}); });
+  (wall.posts||[]).forEach(pt=>{ if(pt.reg && !m.has(pt.reg.toUpperCase())) m.set(pt.reg.toUpperCase(),{reg:pt.reg.toUpperCase(), airline:pt.airline, variant:pt.variant||(FAM[pt.fam]?FAM[pt.fam].name:''), fam:pt.fam, src:'on the wall'}); });
+  return [...m.values()];
+}
+makeCombo({input:'wfReg', search:q=>{
+  const Q=q.trim().toUpperCase().replace(/\s+/g,''); if(!Q) return [];
+  const out=[];
+  knownRegs().filter(k=>{ const r=k.reg.replace(/-/g,''), b=Q.replace(/-/g,''); return r.startsWith(b) || (b.length>=3 && r.includes(b)); }).slice(0,6).forEach(k=>out.push({code:k.reg, main:k.reg, sub:[k.airline,k.variant,k.src].filter(Boolean).join(' · '), value:k.reg, known:k}));
+  const bare=Q.replace(/-/g,'');
+  REG_PREFIX.filter(([pf])=>{ const b=pf.replace('-',''); return bare.startsWith(b) || (b.startsWith(bare) && bare.length>=1); })
+    .sort((a,b)=>b[0].length-a[0].length).slice(0,4)
+    .forEach(([pf,c])=>out.push({code:pf.replace(/-$/,'')+(pf.endsWith('-')?'-':''), kind:'hint', main:`${pf}… ${c}`, sub: bare.startsWith(pf.replace('-',''))? 'Registration prefix for '+c : 'Tap to start with '+pf, value: bare.startsWith(pf.replace('-',''))? (pf.endsWith('-') && !Q.includes('-')? pf+bare.slice(pf.length-1) : Q) : pf, keepOpen:true}));
+  return out.slice(0,8);
+}, pick:it=>{ if(it.known){ if(!$('wfAir').value) $('wfAir').value=it.known.airline||''; if(it.known.fam && FAM_IDS.includes(it.known.fam) && !$('wfFam').value){ $('wfFam').value=it.known.fam; updatePostBtn(); } } }});
+$('wfReg').addEventListener('input',()=>{ const el=$('wfReg'), pos=el.selectionStart, up=el.value.toUpperCase(); if(up!==el.value){ el.value=up; try{ el.setSelectionRange(pos,pos); }catch(e){} } });
+
+
+$('wallForm').addEventListener('submit',async e=>{
+  e.preventDefault(); if(wall.busy||!wall.bmp) return;
+  wall.busy=true; updatePostBtn(); $('wfMsg').textContent='Uploading…';
+  try{
+    const c=$('wfCanvas');
+    const blob=await new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(new Error('encode')),'image/jpeg',0.86));
+    const up=await wall.assets.upload(blob,{type:'image/jpeg'});
+    const post={id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6), asset:up.id, w:c.width, h:c.height,
+      fam:$('wfFam').value, variant:$('wfVar').value.trim(), airline:$('wfAir').value.trim(), reg:$('wfReg').value.trim().toUpperCase(),
+      place:$('wfPlace').value.trim(), date:$('wfDate').value, caption:$('wfCap').value.trim(), at:Date.now()};
+    const ref=wall.db.doc('wall/'+wall.uid), snap=await ref.get();
+    const posts=snap.exists? ((snap.data()||{}).posts||[]) : [];
+    if(posts.length>=60) throw Object.assign(new Error('full'),{code:'too_many'});
+    if(snap.exists) await ref.update({posts:[post,...posts]}); else await ref.set({posts:[post]});
+    $('wfMsg').textContent='Posted.';
+    ['wfVar','wfAir','wfReg','wfCap'].forEach(id=>$(id).value='');
+    $('wfMine').checked=false; $('wfCanvas').hidden=true; $('dropTxt').hidden=false; $('wfInfo').textContent=''; $('wfRotate').disabled=true;
+    wall.bmp.close(); wall.bmp=null; $('wfFile').value='';
+  }catch(err){
+    const c=err&&err.code;
+    $('wfMsg').textContent= c==='too_many' ? 'You have 60 photos on the wall. Delete one to post another.'
+      : c==='quota_exceeded' ? 'The wall is out of storage space. Ask the owner to remove some photos.'
+      : c==='not_granted' ? 'You don’t have permission to post here. Ask the owner for access.'
+      : 'Posting failed ('+(c||'error')+'). Try again.';
+  }
+  wall.busy=false; updatePostBtn();
+});
+$('wallPlay').addEventListener('click',async ()=>{
+  const list=wall.posts.filter(p=>(wall.filter==='all'||p.fam===wall.filter)&&FAM_IDS.includes(p.fam)&&p.w&&p.h);
+  $('wallPlay').disabled=true; $('wallPlay').textContent='Loading photos…';
+  const pool=await Promise.all(list.map(pt=>new Promise(res=>{
+    const ph={id:'w-'+pt.id, src:'_blob/'+pt.asset, w:pt.w, h:pt.h, ow:pt.w, model:MODELS.find(m=>m.fam===pt.fam).id,
+      variant: pt.variant? `${FAM[pt.fam].name} (${pt.variant})` : FAM[pt.fam].name, airline:pt.airline, reg:pt.reg, place:pt.place, date:pt.date,
+      community:true, authorName: pt.author===wall.uid? 'you' : nameOf(pt.author),
+      focus:{middle:{x:pt.w/2,y:pt.h/2,w:pt.w*0.3}}, full:{x:pt.w/2,y:pt.h/2,w:pt.w}};
+    ph.img=new Image(); const t=setTimeout(()=>res(null),12000);
+    ph.img.onload=()=>{ clearTimeout(t); ph.ready=true; res(ph); }; ph.img.onerror=()=>{ clearTimeout(t); res(null); };
+    ph.img.src=ph.src;
+  })));
+  $('wallPlay').disabled=false; renderWall();
+  customPool=pool.filter(Boolean);
+  if(!customPool.length){ customPool=null; wallMsg('Those photos could not be loaded right now.'); return; }
+  if(location.hash==='#wall') history.replaceState(null,'',location.pathname+location.search);
+  startGame();
+});
+function openWall(){ show('wallPanel'); window.scrollTo({top:0}); if(location.hash!=='#wall') location.hash='wall'; startWall(); }
+$('wallBtn').addEventListener('click',openWall);
+$('wallBack').addEventListener('click',()=>{ if(location.hash==='#wall') history.replaceState(null,'',location.pathname+location.search); toStart(); });
+window.addEventListener('hashchange',()=>{ if(location.hash==='#wall' && $('wallPanel').hidden && (mode==='attract'||!game)) openWall(); });
+if(location.hash==='#wall') openWall(); else startWall();
+
+/* ---------- leaderboard ---------- */
+const board={db:null,uid:null,docs:[],view:'total',level:'rookie',started:false};
+function boardMsg(t){ const el=$('boardStatus'); el.textContent=t; el.hidden=!t; }
+function startBoard(){
+  if(board.started||!wall.db) return; board.started=true;
+  board.db=wall.db; board.uid=wall.uid;
+  const timer=setTimeout(()=>boardMsg('The leaderboard can’t be reached right now.'),10000);
+  board.db.collection('scores').onSnapshot(snap=>{
+    if(!snap.metadata.fromCache) clearTimeout(timer);
+    board.docs=snap.docs.map(d=>Object.assign({uid:d.id},d.data()||{}));
+    renderBoard();
+  }, err=>{ clearTimeout(timer); boardMsg('The leaderboard could not be loaded ('+(err&&err.code||'error')+').'); });
+}
+async function saveScore(key,roll){
+  const el=$('boardSave');
+  if(!board.db||!board.uid){ return; }
+  try{
+    const ref=board.db.doc('scores/'+board.uid), snap=await ref.get(), body=snap.exists? (snap.data()||{}) : {};
+    const best=Object.assign({}, body.best||{}), prev=best[key];
+    if(roll.daily && prev){ if(el && el.isConnected) el.textContent=`Practice run. Only your first Daily 5 counts: ${prev.score.toLocaleString()} points today.`; return; }
+    if(!prev || roll.score>prev.score) best[key]={score:roll.score, hits:roll.hits, n:roll.n, at:Date.now()};
+    await ref.set({total:(body.total||0)+roll.score, rolls:(body.rolls||0)+1, best, at:Date.now()});
+    const view= roll.daily? key : 'total', rank=rankOf(board.uid,view);
+    if(el && el.isConnected) el.textContent= roll.daily ? `Saved: ${roll.score.toLocaleString()} points${rank?`, #${rank} on today’s Daily 5`:''}. Come back tomorrow for 5 new frames.`
+      : `Saved: +${roll.score.toLocaleString()} to your total${rank?`, now #${rank} overall`:''}${(!prev||roll.score>prev.score)&&roll.score>0?' · new personal best on this board':''}.`;
+  }catch(err){ if(el && el.isConnected) el.textContent='Couldn’t save to the leaderboard ('+(err&&err.code||'error')+').'; }
+}
+function boardRows(view){
+  const rows=board.docs.map(d=>{
+    if(view==='total') return {uid:d.uid, v:d.total||0, rolls:d.rolls||0, at:d.at, bot:!!d.bot};
+    const b=(d.best||{})[view]; return b? {uid:d.uid, v:b.score||0, rolls:null, hits:b.hits, n:b.n, at:b.at, bot:!!d.bot} : null;
+  }).filter(r=>r && r.v>0);
+  rows.sort((a,b)=>b.v-a.v || (a.at||0)-(b.at||0));
+  return rows;
+}
+function rankOf(uid,view){ const i=boardRows(view).findIndex(r=>r.uid===uid); return i<0? null : i+1; }
+async function renderBoard(){
+  const games=[['total','Total points'],['daily','Today’s Daily 5']].concat(Object.entries(GAMES).map(([k,g])=>[k,g.label]));
+  const gsel= board.view==='total' ? 'total' : board.view.split('-')[0];
+  if(gsel==='daily') board.view='daily-'+dayKey();
+  $('boardGames').innerHTML=games.map(([k,l])=>`<button type="button" class="chip" data-g="${k}" aria-pressed="${gsel===k}">${esc(l)}</button>`).join('');
+  $('boardLevels').hidden= gsel==='total'||gsel==='daily';
+  $('boardLevels').innerHTML=Object.entries(DIFF).map(([k,d])=>`<button type="button" class="chip" data-l="${k}" aria-pressed="${board.level===k}">${esc(d.label)}</button>`).join('');
+  $('boardCol').textContent= gsel==='total' ? 'Total points' : gsel==='daily' ? 'Score' : 'Best roll';
+  const rows=boardRows(board.view).slice(0,50);
+  await resolveNames(rows.map(r=>r.uid).filter(id=>!wall.names[id]));
+  boardMsg(rows.length? '' : gsel==='daily' ? 'Nobody has played today’s Daily 5 yet. Be the first.' : 'No scores on this board yet. Finish a roll to get on it.');
+  $('boardRows').innerHTML=rows.map((r,i)=>{
+    const me=r.uid===board.uid, name=me? 'You' : nameOf(r.uid);
+    return `<tr class="${me?'me':''}"><td class="num">${i<3?`<span class="medal">${i+1}</span>`:i+1}</td><td class="${me?'you':''}">${esc(name)}${r.bot?' <span class="icao">AI test player</span>':''}</td>
+      <td class="num">${r.v.toLocaleString()}${r.n?` <span class="note">(${r.hits}/${r.n})</span>`:''}</td><td class="num">${r.rolls==null?'—':r.rolls}</td>
+      <td>${wall.canEdit&&!me?`<button type="button" class="linkbtn" data-rm="${esc(r.uid)}">Remove</button>`:''}</td></tr>`;
+  }).join('');
+}
+$('boardGames').addEventListener('click',e=>{ const b=e.target.closest('[data-g]'); if(!b) return; board.view= b.dataset.g==='total' ? 'total' : b.dataset.g==='daily' ? 'daily-'+dayKey() : b.dataset.g+'-'+board.level; renderBoard(); });
+$('boardLevels').addEventListener('click',e=>{ const b=e.target.closest('[data-l]'); if(!b) return; board.level=b.dataset.l; if(board.view!=='total' && !board.view.startsWith('daily-')) board.view=board.view.split('-')[0]+'-'+board.level; renderBoard(); });
+const pendingRm=new Set();
+$('boardRows').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-rm]'); if(!b) return; const uid=b.dataset.rm;
+  if(!pendingRm.has(uid)){ pendingRm.add(uid); b.textContent='Tap again to remove'; setTimeout(()=>{ pendingRm.delete(uid); if(b.isConnected) b.textContent='Remove'; },4000); return; }
+  pendingRm.delete(uid); b.disabled=true;
+  try{
+    const ref=board.db.doc('scores/'+uid), snap=await ref.get(), body=Object.assign({}, snap.data()||{});
+    if(board.view==='total'){ body.total=0; body.rolls=0; } else { const best=Object.assign({},body.best||{}); delete best[board.view]; body.best=best; }
+    await ref.set(body);
+  }catch(err){ b.disabled=false; b.textContent='Couldn’t remove'; }
+});
+function openBoard(view){
+  if(view){ board.view=view; if(!view.startsWith('daily-')) board.level=view.split('-')[1]||board.level; }
+  show('boardPanel'); window.scrollTo({top:0}); startWall(); renderBoard();
+}
+$('boardBtn').addEventListener('click',()=>openBoard());
+$('boardBack').addEventListener('click',()=>{ game? show('endPanel') : toStart(); if(game){ $('hud').hidden=true; } });
+
+document.addEventListener('keydown',e=>{
+  if(e.altKey||e.ctrlKey||e.metaKey) return;
+  if(mode==='play' && game && game.type==='blind' && (e.key===' '||e.key==='Enter')){ e.preventDefault(); stopLens(); return; }
+  if((mode==='play'||mode==='pick') && /^[1-8]$/.test(e.key)){
+    const b=$('choice-'+(Number(e.key)-1)); if(b){ e.preventDefault(); b.click(); }
+  } else if(mode==='reveal' && e.key==='Enter' && game && !$('playPanel').hidden){
+    const a=document.activeElement; if(a && a.tagName==='BUTTON') return;
+    e.preventDefault(); nextRound(false);
+  }
+});
+
+$('typeCount').textContent=`Real photos only · ${FAMILIES.length} aircraft families to choose from`;
+showBests();
+updatePhotoNote();
+if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>{ if(!$('logPanel').hidden) renderLog(); });
+
+})();
+</script>
+
+</body>
+</html>
