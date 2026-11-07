@@ -24,6 +24,12 @@ function wrapErr(e) {
 
 async function start() {
   const app = initializeApp(firebaseConfig);
+  // Visitor statistics (countries, devices) in Firebase > Analytics. Never blocks the game.
+  if (firebaseConfig.measurementId) {
+    import('https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js')
+      .then(async m => { if (await m.isSupported()) m.getAnalytics(app); })
+      .catch(() => {});
+  }
   const auth = getAuth(app);
   const fs = getFirestore(app);
   try { await getRedirectResult(auth); } catch (e) { /* ignore */ }
