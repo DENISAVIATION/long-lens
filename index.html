@@ -358,7 +358,7 @@ footer{color:var(--muted);font-size:12px;line-height:1.5;border-top:1px solid va
       <label class="diff"><input type="radio" name="game" value="classic" id="g-classic" checked><span class="card"><span class="dname">Long Lens</span><span class="dmeta">Name the aircraft family while the lens pulls back.</span></span></label>
       <label class="diff"><input type="radio" name="game" value="blind" id="g-blind"><span class="card"><span class="dname">Blind Stop</span><span class="dmeta">No choices on screen. Stop the clock when you know it, then pick from every family. ×1.25</span></span></label>
       <label class="diff"><input type="radio" name="game" value="airline" id="g-airline"><span class="card"><span class="dname">Tail Spotter</span><span class="dmeta">Name the airline instead of the aircraft.</span></span></label>
-      <label class="diff"><input type="radio" name="game" value="survival" id="g-survival"><span class="card"><span class="dname">Sudden Death</span><span class="dmeta">Endless frames. One miss or timeout ends the run.</span></span></label>
+      <label class="diff"><input type="radio" name="game" value="survival" id="g-survival"><span class="card"><span class="dname">No Miss</span><span class="dmeta">Endless frames. One miss or timeout ends the run.</span></span></label>
     </fieldset>
     <fieldset class="diffs">
       <legend class="eyebrow">Choose your level</legend>
@@ -867,7 +867,7 @@ const GAMES = {
   classic:  {label:'Long Lens',    end:'Roll complete'},
   blind:    {label:'Blind Stop',   end:'Roll complete'},
   airline:  {label:'Tail Spotter', end:'Roll complete'},
-  survival: {label:'Sudden Death', end:'Run over'}
+  survival: {label:'No Miss', end:'Run over'}
 };
 const AIRLINE_OF = {a6erf:['Emirates','UAE'], zssld:['South African Airways','South Africa'], tcjnl:['Turkish Airlines','Turkey'], n586nw:['Delta Air Lines','USA'], n504ea:['Eastern Air Lines','USA'], n915fd:['FedEx Express','USA'], fhmld:['HOP!','France'], n659ca:['Delta Connection','USA'], klmmd11:['KLM','Netherlands'], fgkxf:['Air France','France'], ja340j:['Japan Airlines','Japan'], b5969:['China Southern','China'], mahan772:['Mahan Air','Iran'], n782ha:['Alaska Airlines','USA'],
   dabyn:['Lufthansa','Germany'], bhnl:['Cathay Pacific','Hong Kong'], n130dl:['Delta Air Lines','USA'], a6edy:['Emirates','UAE'], fwwez:['Firefly','Malaysia'], phez:['KLM Cityhopper','Netherlands']};
@@ -1025,7 +1025,7 @@ function endGame(){
   if(pb){ rec.best[key]=game.score; saveRec(); }
   const squares=played.slice(0,20).map(r=>r.ok?'🟩':'🟥').join('')+(played.length>20?'…':'');
   const shareTxt= game.daily ? `Long Lens Daily 5 · ${dayLabel(game.daily)}\n${squares}  ${game.score.toLocaleString()} pts\nCan you name them before ×1?`
-    : game.type==='survival' ? `Long Lens · Sudden Death · ${DIFF[game.diff].label}\nSurvived ${game.hits} frame${game.hits===1?'':'s'} · ${game.score.toLocaleString()} pts\nCan you go further?`
+    : game.type==='survival' ? `Long Lens · No Miss · ${DIFF[game.diff].label}\nSurvived ${game.hits} frame${game.hits===1?'':'s'} · ${game.score.toLocaleString()} pts\nCan you go further?`
     : `Long Lens · ${game.type==='classic'?'':GAMES[game.type].label+' · '}${DIFF[game.diff].label}\n${squares}  ${game.score.toLocaleString()} pts\nCan you beat it?`;
   RNG=Math.random;
   const boardKey=boardKeyOf(), roll={score:game.score,hits:game.hits,n:played.length,daily:!!game.daily};
