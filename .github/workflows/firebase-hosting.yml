@@ -1,0 +1,29 @@
+# Publishes the site to Firebase Hosting (https://<project-id>.web.app) on every push to main.
+# Needs one repository secret: FIREBASE_SERVICE_ACCOUNT (the JSON key from
+# Firebase console > Project settings > Service accounts > Generate new private key).
+name: Deploy to Firebase Hosting
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read project id from the key
+        id: pid
+        if: env.SA != ''
+        run: echo "id=$(printf '%s' "$SA" | jq -r .project_id)" >> "$GITHUB_OUTPUT"
+      - name: Skip (no key yet)
+        if: env.SA == ''
+        run: echo "Add the FIREBASE_SERVICE_ACCOUNT secret to deploy to Firebase Hosting."
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        if: env.SA != ''
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: ${{ steps.pid.outputs.id }}
+          channelId: live
