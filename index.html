@@ -1150,6 +1150,7 @@ async function startWall(){
   startBoard();
   const sel=$('wfFam'); sel.innerHTML='<option value="">Choose…</option>'+FAMILIES.map(([id,n])=>`<option value="${id}">${esc(n)}</option>`).join('')+'<option value="unsure">Not sure</option>';
   if(assets && wall.uid) $('wallForm').hidden=false;
+  else $('wallForm').insertAdjacentHTML('beforebegin','<p class="note signhint"><b>Sign in with Google</b> (top of the page) to post your photos.</p>');
   wallMsg('Loading the wall…');
   const timer=setTimeout(()=>wallMsg('The wall can’t be reached right now. It will appear when the connection comes back.'),10000);
   wall.unsub=db.collection('wall').onSnapshot(snap=>{

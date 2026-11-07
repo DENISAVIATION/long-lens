@@ -100,6 +100,15 @@ async function start() {
   } : null;
 
   // Sign-in button in the top bar.
+  // Google blocks sign-in inside app browsers (Instagram, Facebook, LINE, Telegram...): tell the visitor how to get out.
+  const inApp = /Instagram|FBAN|FBAV|FB_IAB|Line\/|Telegram|TikTok|Snapchat|; wv\)/i.test(navigator.userAgent);
+  if (!current && inApp) {
+    const bar = document.createElement('p');
+    bar.className = 'note inappbar';
+    bar.textContent = 'To sign in with Google, open this page in Safari or Chrome: tap ••• (or ⋮) and choose “Open in browser”. You can play here without signing in.';
+    bar.style.cssText = 'margin:10px 16px;padding:10px 12px;border-radius:8px;background:#f5c000;color:#121416;font-weight:600';
+    document.body.prepend(bar);
+  }
   const btn = document.getElementById('authBtn');
   if (btn) {
     btn.hidden = false;
