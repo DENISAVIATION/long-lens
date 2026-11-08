@@ -1110,7 +1110,8 @@ const FX=(()=>{
   return {
     get on(){ return on; },
     toggle(){ on=!on; rec.prefs.sound=on; saveRec(); if(on) tone(880,.08,'sine',.08); return on; },
-    result(ok){ if(ok){ click(.5); click(.35,.07); tone(1046,.18,'triangle',.11,.06); tone(1568,.3,'triangle',.09,.13); buzz(30); }
+    // Correct: a soft two-note bell (sine, quiet, no click). Wrong: a short low hum.
+    result(ok){ if(ok){ tone(784,.35,'sine',.045); tone(1175,.5,'sine',.035,.09); buzz(20); }
                 else { tone(196,.3,'sawtooth',.05,0,130); buzz([70,50,70]); } },
     tick(){ tone(1320,.05,'square',.035); buzz(12); },
     fanfare(){ [523,659,784,1046].forEach((f,i)=>tone(f,.26,'triangle',.09,.15+i*.09)); buzz([40,30,40,30,90]); }
