@@ -1120,45 +1120,46 @@ const FX=(()=>{
 function syncSoundBtn(){ const b=$('soundBtn'); b.textContent=FX.on?'Sound on':'Sound off'; b.setAttribute('aria-pressed',String(FX.on)); }
 $('soundBtn').addEventListener('click',()=>{ FX.toggle(); syncSoundBtn(); }); syncSoundBtn();
 
-/* Relaxed jazz loop for play time: made live in the browser (no audio files).
-   ii-V-I-VI in C, soft electric piano, walking bass, brushes, a few vibraphone notes. Quiet on purpose. */
+/* Upbeat play-time loop in the style of the Long Lens videos: made live in the browser (no audio files).
+   120 bpm, soft four-on-the-floor kick, offbeat hats, square bass, warm pad on Am-F-C-G,
+   a bouncy marimba arpeggio and a little "boing" at the end of every 4 bars. */
 const JAZZ=(()=>{
-  let a=null, out=null, timer=null, step=0, nextT=0, playing=false;
+  let a=null, out=null, timer=null, step=0, nextT=0, playing=false, noiseBuf=null;
   let on=(rec.prefs.music!==false);
-  const BPM=76, EIGHTH=60/BPM/2, SWING=0.62;
-  const mtof=m=>440*Math.pow(2,(m-69)/12);
-  const BARS=[ {v:[53,57,60,64], b:[38,41,45,44]},   // Dm9
-               {v:[53,59,64],    b:[43,47,50,49]},   // G13
-               {v:[52,55,59,62], b:[36,40,43,44]},   // Cmaj9
-               {v:[55,61,65],    b:[45,49,52,50]} ]; // A7b13
-  const SCALE=[72,74,76,79,81,84];
+  const BPM=120, EIGHTH=60/BPM/2;
+  const ROOTS=[110,87.31,130.81,98];
+  const CHORDS=[[220,261.63,329.63],[174.61,220,261.63],[261.63,329.63,392],[196,246.94,293.66]];
+  const ARP=[0,1,2,1,0,2,1,2];
   function ctxA(){ if(!a){ try{ a=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } } if(a.state==='suspended') a.resume(); return a; }
-  function chain(){ out=a.createGain(); out.gain.value=0; const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2600; out.connect(lp); lp.connect(a.destination); }
-  function keys(m,t,dur,g){ const o=a.createOscillator(), o2=a.createOscillator(), e=a.createGain(); o.type='sine'; o2.type='sine';
-    o.frequency.value=mtof(m); o2.frequency.value=mtof(m)*2.002; const e2=a.createGain(); e2.gain.value=.18;
-    e.gain.setValueAtTime(0.0001,t); e.gain.exponentialRampToValueAtTime(g,t+0.012); e.gain.exponentialRampToValueAtTime(0.0001,t+dur);
-    o.connect(e); o2.connect(e2); e2.connect(e); e.connect(out); o.start(t); o2.start(t); o.stop(t+dur+.05); o2.stop(t+dur+.05); }
-  function bass(m,t){ const o=a.createOscillator(), e=a.createGain(), f=a.createBiquadFilter(); o.type='triangle'; o.frequency.value=mtof(m);
-    f.type='lowpass'; f.frequency.value=420; e.gain.setValueAtTime(0.0001,t); e.gain.exponentialRampToValueAtTime(.32,t+.02); e.gain.exponentialRampToValueAtTime(0.0001,t+EIGHTH*1.9);
-    o.connect(f); f.connect(e); e.connect(out); o.start(t); o.stop(t+EIGHTH*2); }
-  let noiseBuf=null;
-  function brush(t,g,len){ if(!noiseBuf){ const n=a.sampleRate; noiseBuf=a.createBuffer(1,n,n); const d=noiseBuf.getChannelData(0); for(let i=0;i<n;i++) d[i]=Math.random()*2-1; }
-    const s=a.createBufferSource(); s.buffer=noiseBuf; const f=a.createBiquadFilter(); f.type='bandpass'; f.frequency.value=5200; f.Q.value=.7; const e=a.createGain();
-    e.gain.setValueAtTime(0.0001,t); e.gain.exponentialRampToValueAtTime(g,t+len*.35); e.gain.exponentialRampToValueAtTime(0.0001,t+len);
-    s.connect(f); f.connect(e); e.connect(out); s.start(t,Math.random()*.5); s.stop(t+len+.02); }
+  function chain(){ out=a.createGain(); out.gain.value=0; const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=6000; out.connect(lp); lp.connect(a.destination); }
+  function env(g,t,atk,dec){ const e=a.createGain(); e.gain.setValueAtTime(0.0001,t); e.gain.exponentialRampToValueAtTime(g,t+atk); e.gain.exponentialRampToValueAtTime(0.0001,t+atk+dec); e.connect(out); return e; }
+  function kick(t){ const o=a.createOscillator(); o.type='sine'; o.frequency.setValueAtTime(125,t); o.frequency.exponentialRampToValueAtTime(45,t+.12);
+    o.connect(env(.42,t,.002,.16)); o.start(t); o.stop(t+.22); }
+  function hat(t){ if(!noiseBuf){ const n=a.sampleRate; noiseBuf=a.createBuffer(1,n,n); const d=noiseBuf.getChannelData(0); for(let i=0;i<n;i++) d[i]=Math.random()*2-1; }
+    const s=a.createBufferSource(); s.buffer=noiseBuf; const f=a.createBiquadFilter(); f.type='highpass'; f.frequency.value=7000;
+    s.connect(f); f.connect(env(.09,t,.001,.03)); s.start(t,Math.random()*.5); s.stop(t+.06); }
+  function bass(fq,t){ const o=a.createOscillator(), o2=a.createOscillator(), f=a.createBiquadFilter(); o.type='square'; o2.type='sine'; o.frequency.value=fq; o2.frequency.value=fq;
+    f.type='lowpass'; f.frequency.value=700; const g=a.createGain(); g.gain.value=.4; o.connect(g); g.connect(f); o2.connect(f);
+    f.connect(env(.2,t,.005,.4)); o.start(t); o2.start(t); o.stop(t+.5); o2.stop(t+.5); }
+  function pad(fqs,t){ const L=EIGHTH*8; fqs.forEach(q=>{ const o=a.createOscillator(), lfo=a.createOscillator(), lg=a.createGain(); o.type='sine'; o.frequency.value=q;
+    lfo.frequency.value=.3; lg.gain.value=q*.004; lfo.connect(lg); lg.connect(o.frequency);
+    const e=a.createGain(); e.gain.setValueAtTime(0.0001,t); e.gain.linearRampToValueAtTime(.045,t+.4); e.gain.setValueAtTime(.045,t+L-.4); e.gain.linearRampToValueAtTime(0.0001,t+L);
+    o.connect(e); e.connect(out); o.start(t); lfo.start(t); o.stop(t+L+.05); lfo.stop(t+L+.05); }); }
+  function marimba(fq,t,g){ const o=a.createOscillator(), o2=a.createOscillator(); o.type='sine'; o2.type='sine'; o.frequency.value=fq; o2.frequency.value=fq*4;
+    const e=env(g,t,.003,.22), e2=a.createGain(); e2.gain.value=.25; o.connect(e); o2.connect(e2); e2.connect(env(g*.6,t,.002,.05));
+    o.start(t); o2.start(t); o.stop(t+.3); o2.stop(t+.1); }
+  function boing(t){ const o=a.createOscillator(); o.type='triangle'; o.frequency.setValueAtTime(330,t); o.frequency.exponentialRampToValueAtTime(880,t+.18);
+    o.frequency.exponentialRampToValueAtTime(660,t+.3); o.connect(env(.07,t,.01,.3)); o.start(t); o.stop(t+.35); }
   function schedule(){
     while(nextT < a.currentTime+0.25){
-      const bar=BARS[Math.floor(step/8)%BARS.length], i=step%8, beat=Math.floor(i/2), off=i%2;
-      const t=nextT;
-      if(!off){ bass(bar.b[beat],t); if(beat===1||beat===3) brush(t,.06,.22); }
-      brush(t,.025,.08);                                   // ride-ish tick on every swung eighth
-      if(i===0) bar.v.forEach(m=>keys(m,t,EIGHTH*5,.05));  // comp on 1
-      if(i===3) bar.v.forEach(m=>keys(m,t,EIGHTH*3,.035)); // and of 2
-      if(i===6 && Math.random()<.45) keys(SCALE[Math.floor(Math.random()*SCALE.length)],t,EIGHTH*4,.03); // vibes
-      nextT += EIGHTH*2*(off? (1-SWING) : SWING); step++;
+      const t=nextT, i=step%8, bar=Math.floor(step/8)%4, beat=Math.floor(i/2), off=i%2;
+      if(!off){ kick(t); if(beat===0||beat===2) bass(ROOTS[bar], t); } else hat(t);
+      if(i===0) pad(CHORDS[bar], t);
+      const ch=CHORDS[bar]; marimba(ch[ARP[i]]*2, t, off? .045 : .06);
+      if(bar===3 && i===7) boing(t);
+      nextT+=EIGHTH; step++;
     }
-  }
-  return {
+  }  return {
     get on(){ return on; },
     start(){ if(!on || !FX.on || playing) return; if(!ctxA()) return; if(!out) chain(); playing=true; step=0; nextT=a.currentTime+.08;
       out.gain.cancelScheduledValues(a.currentTime); out.gain.setValueAtTime(out.gain.value,a.currentTime); out.gain.linearRampToValueAtTime(.55,a.currentTime+1.5);
