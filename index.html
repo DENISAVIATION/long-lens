@@ -68,7 +68,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
 .wordmark{font-family:var(--f-display);font-weight:800;font-size:25px;line-height:1;letter-spacing:.04em;color:var(--sign-ink);white-space:nowrap;padding-top:2px}
 .quitbtn{margin-left:auto;font:500 12px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:none;border:1.5px solid var(--line);border-radius:4px;padding:6px 9px;cursor:pointer}
 .quitbtn:hover{color:var(--ink);border-color:var(--ink)}
-.soundbtn{margin-left:auto}.soundbtn + .quitbtn{margin-left:6px}
+.hudbtns{margin-left:auto;display:inline-flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.hudbtns .quitbtn{margin-left:0}
 .fxcanvas{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:50}
 .streakchip{display:inline-block;font:600 13px/1 var(--f-mono);letter-spacing:.04em;background:var(--sign-ink);color:#121416;border-radius:20px;padding:5px 10px;margin-right:6px;vertical-align:1px}
 .storyprev{display:block;max-width:180px;width:40%;border-radius:10px;border:1px solid var(--line);margin-top:4px}
@@ -333,7 +333,7 @@ footer{color:var(--muted);font-size:12px;line-height:1.5;border-top:1px solid va
       <span>Score <b id="hScore">0</b></span>
       <span class="streak" id="hStreakWrap">Streak <b id="hStreak">0</b></span>
       <span class="worth">Worth now <b id="hWorth">—</b></span>
-      <button type="button" class="quitbtn soundbtn" id="soundBtn" aria-pressed="true">Sound on</button><button type="button" class="quitbtn" id="quitBtn">Quit roll</button>
+      <span class="hudbtns"><button type="button" class="quitbtn" id="musicBtn" aria-pressed="true">Music on</button><button type="button" class="quitbtn" id="soundBtn" aria-pressed="true">Sound on</button><button type="button" class="quitbtn" id="quitBtn">Quit roll</button></span>
     </div>
     <div class="timer" id="timer" hidden><i id="timerBar"></i></div>
     <div class="viewfinder" id="vf">
@@ -899,7 +899,7 @@ function pickRounds(pool,n,lastF){
 }
 let customPool=null;
 function gamePool(){ if(customPool) return customPool; const ready=readyPhotos(); return game.type==='airline'? ready.filter(p=>airlineOf(p)) : ready; }
-function startDaily(){
+function startDaily(){ JAZZ.start();
   const day=dayKey(), pool=PHOTOS.filter(p=>!p.failed).sort((a,b)=>a.id<b.id?-1:1);
   if(!pool.length){ updatePhotoNote(); return; }
   customPool=null; RNG=seeded('long-lens-daily-'+day);
@@ -910,7 +910,7 @@ function startDaily(){
   $('hud').hidden=false; $('timer').hidden=false; $('logBtn').hidden=true; $('wallBtn').hidden=true; $('boardBtn').hidden=true; $('playTab').hidden=true;
   show('playPanel'); nextRound(true);
 }
-function startGame(){
+function startGame(){ JAZZ.start();
   RNG=Math.random;
   diff=document.querySelector('input[name="diff"]:checked').value;
   let type=selectedGame(); if(customPool && type==='airline') type='classic';
@@ -1029,7 +1029,7 @@ function answer(id){
   cv.setAttribute('aria-label','Full view: '+variant);
   updateHud();
 }
-function endGame(){
+function endGame(){ JAZZ.stop();
   const played=game.rounds.slice(0, game.type==='survival'? game.i : ROUNDS);
   mode='reveal'; game.i=played.length-1;
   const key=bestKey(), prev=rec.best[key]||0, firstDaily=game.daily && !(key in rec.best), pb=game.daily? firstDaily : (game.score>prev && game.score>0);
@@ -1083,7 +1083,7 @@ function endGame(){
   saveScore(boardKey,roll);
   $('againBtn').focus({preventScroll:true});
 }
-function toStart(){ customPool=null; RNG=Math.random; renderDaily(); mode='attract'; newAttract(); game=null; showBests(); $('hud').hidden=true; $('timer').hidden=true; $('logBtn').hidden=false; $('wallBtn').hidden=false; $('boardBtn').hidden=false; $('playTab').hidden=false; show('startPanel'); }
+function toStart(){ JAZZ.stop(); customPool=null; RNG=Math.random; renderDaily(); mode='attract'; newAttract(); game=null; showBests(); $('hud').hidden=true; $('timer').hidden=true; $('logBtn').hidden=false; $('wallBtn').hidden=false; $('boardBtn').hidden=false; $('playTab').hidden=false; show('startPanel'); }
 // Quit mid-roll: a normal roll is dropped without saving; a Daily 5 ends and counts the frames already answered, so quitting can't be used to peek and retry.
 let quitArmed=null;
 $('quitBtn').addEventListener('click',()=>{
@@ -1119,6 +1119,58 @@ const FX=(()=>{
 })();
 function syncSoundBtn(){ const b=$('soundBtn'); b.textContent=FX.on?'Sound on':'Sound off'; b.setAttribute('aria-pressed',String(FX.on)); }
 $('soundBtn').addEventListener('click',()=>{ FX.toggle(); syncSoundBtn(); }); syncSoundBtn();
+
+/* Relaxed jazz loop for play time: made live in the browser (no audio files).
+   ii-V-I-VI in C, soft electric piano, walking bass, brushes, a few vibraphone notes. Quiet on purpose. */
+const JAZZ=(()=>{
+  let a=null, out=null, timer=null, step=0, nextT=0, playing=false;
+  let on=(rec.prefs.music!==false);
+  const BPM=76, EIGHTH=60/BPM/2, SWING=0.62;
+  const mtof=m=>440*Math.pow(2,(m-69)/12);
+  const BARS=[ {v:[53,57,60,64], b:[38,41,45,44]},   // Dm9
+               {v:[53,59,64],    b:[43,47,50,49]},   // G13
+               {v:[52,55,59,62], b:[36,40,43,44]},   // Cmaj9
+               {v:[55,61,65],    b:[45,49,52,50]} ]; // A7b13
+  const SCALE=[72,74,76,79,81,84];
+  function ctxA(){ if(!a){ try{ a=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } } if(a.state==='suspended') a.resume(); return a; }
+  function chain(){ out=a.createGain(); out.gain.value=0; const lp=a.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=2600; out.connect(lp); lp.connect(a.destination); }
+  function keys(m,t,dur,g){ const o=a.createOscillator(), o2=a.createOscillator(), e=a.createGain(); o.type='sine'; o2.type='sine';
+    o.frequency.value=mtof(m); o2.frequency.value=mtof(m)*2.002; const e2=a.createGain(); e2.gain.value=.18;
+    e.gain.setValueAtTime(0.0001,t); e.gain.exponentialRampToValueAtTime(g,t+0.012); e.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(e); o2.connect(e2); e2.connect(e); e.connect(out); o.start(t); o2.start(t); o.stop(t+dur+.05); o2.stop(t+dur+.05); }
+  function bass(m,t){ const o=a.createOscillator(), e=a.createGain(), f=a.createBiquadFilter(); o.type='triangle'; o.frequency.value=mtof(m);
+    f.type='lowpass'; f.frequency.value=420; e.gain.setValueAtTime(0.0001,t); e.gain.exponentialRampToValueAtTime(.32,t+.02); e.gain.exponentialRampToValueAtTime(0.0001,t+EIGHTH*1.9);
+    o.connect(f); f.connect(e); e.connect(out); o.start(t); o.stop(t+EIGHTH*2); }
+  let noiseBuf=null;
+  function brush(t,g,len){ if(!noiseBuf){ const n=a.sampleRate; noiseBuf=a.createBuffer(1,n,n); const d=noiseBuf.getChannelData(0); for(let i=0;i<n;i++) d[i]=Math.random()*2-1; }
+    const s=a.createBufferSource(); s.buffer=noiseBuf; const f=a.createBiquadFilter(); f.type='bandpass'; f.frequency.value=5200; f.Q.value=.7; const e=a.createGain();
+    e.gain.setValueAtTime(0.0001,t); e.gain.exponentialRampToValueAtTime(g,t+len*.35); e.gain.exponentialRampToValueAtTime(0.0001,t+len);
+    s.connect(f); f.connect(e); e.connect(out); s.start(t,Math.random()*.5); s.stop(t+len+.02); }
+  function schedule(){
+    while(nextT < a.currentTime+0.25){
+      const bar=BARS[Math.floor(step/8)%BARS.length], i=step%8, beat=Math.floor(i/2), off=i%2;
+      const t=nextT;
+      if(!off){ bass(bar.b[beat],t); if(beat===1||beat===3) brush(t,.06,.22); }
+      brush(t,.025,.08);                                   // ride-ish tick on every swung eighth
+      if(i===0) bar.v.forEach(m=>keys(m,t,EIGHTH*5,.05));  // comp on 1
+      if(i===3) bar.v.forEach(m=>keys(m,t,EIGHTH*3,.035)); // and of 2
+      if(i===6 && Math.random()<.45) keys(SCALE[Math.floor(Math.random()*SCALE.length)],t,EIGHTH*4,.03); // vibes
+      nextT += EIGHTH*2*(off? (1-SWING) : SWING); step++;
+    }
+  }
+  return {
+    get on(){ return on; },
+    start(){ if(!on || !FX.on || playing) return; if(!ctxA()) return; if(!out) chain(); playing=true; step=0; nextT=a.currentTime+.08;
+      out.gain.cancelScheduledValues(a.currentTime); out.gain.setValueAtTime(out.gain.value,a.currentTime); out.gain.linearRampToValueAtTime(.55,a.currentTime+1.5);
+      schedule(); timer=setInterval(schedule,60); },
+    stop(){ if(!playing) return; playing=false; clearInterval(timer); timer=null; const t=a.currentTime;
+      out.gain.cancelScheduledValues(t); out.gain.setValueAtTime(out.gain.value,t); out.gain.linearRampToValueAtTime(0,t+.8); },
+    toggle(){ on=!on; rec.prefs.music=on; saveRec(); if(!on) this.stop(); else if(game && !$('playPanel').hidden) this.start(); return on; }
+  };
+})();
+function syncMusicBtn(){ const b=$('musicBtn'); b.textContent=JAZZ.on?'Music on':'Music off'; b.setAttribute('aria-pressed',String(JAZZ.on)); }
+$('musicBtn').addEventListener('click',()=>{ JAZZ.toggle(); syncMusicBtn(); }); syncMusicBtn();
+$('soundBtn').addEventListener('click',()=>{ if(!FX.on) JAZZ.stop(); else if(game && !$('playPanel').hidden) JAZZ.start(); });
 
 const dayBefore = k => { const d=new Date(k+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()-1); return d.toISOString().slice(0,10); };
 function liveStreak(){ const s=rec.prefs.dstreak; if(!s) return 0; const k=dayKey(); return (s.last===k||s.last===dayBefore(k))? s.n : 0; }
