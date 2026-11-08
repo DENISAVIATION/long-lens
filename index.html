@@ -1176,7 +1176,9 @@ async function shareStory(played, text, streak){
     const file=new File([blob],'long-lens-score.png',{type:'image/png'});
     if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], text}); msg.textContent='Shared. Pick Instagram › Story to post it.'; return; }
     const url=URL.createObjectURL(blob);
-    msg.innerHTML='Your story card is ready. <a href="'+url+'" download="long-lens-score.png">Save the image</a>, then post it to your Instagram Story.<img class="storyprev" alt="Story card preview" src="'+url+'">';
+    msg.innerHTML= window.__ll
+      ? 'Your story card is ready. <a href="'+url+'" download="long-lens-score.png">Save the image</a>, then post it to your Instagram Story.<img class="storyprev" alt="Story card preview" src="'+url+'">'
+      : 'Your story card is ready. Long-press (or right-click) the picture to save it, then post it to your Instagram Story.<img class="storyprev" alt="Story card preview" src="'+url+'">';
   }catch(e){ if(e && e.name==='AbortError'){ msg.hidden=true; return; } msg.textContent='Could not make the story card on this device.'; }
 }
 /* ---------- logbook ---------- */
