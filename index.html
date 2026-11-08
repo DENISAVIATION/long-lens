@@ -7,6 +7,9 @@
 <meta property="og:title" content="Long Lens">
 <meta property="og:description" content="A plane-spotting quiz. One detail, then the lens pulls back. Name the aircraft before the zoom runs out.">
 <link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Long Lens">
 <script>
 window.__ll={}; window.__ll.ready=new Promise(r=>{ window.__ll.resolve=r; });
 window.claude={ use: name => window.__ll.ready.then(api=>api[name]) };
@@ -65,6 +68,10 @@ body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1
 .wordmark{font-family:var(--f-display);font-weight:800;font-size:25px;line-height:1;letter-spacing:.04em;color:var(--sign-ink);white-space:nowrap;padding-top:2px}
 .quitbtn{margin-left:auto;font:500 12px/1 var(--f-mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:none;border:1.5px solid var(--line);border-radius:4px;padding:6px 9px;cursor:pointer}
 .quitbtn:hover{color:var(--ink);border-color:var(--ink)}
+.soundbtn{margin-left:auto}.soundbtn + .quitbtn{margin-left:6px}
+.fxcanvas{position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:50}
+.streakchip{display:inline-block;font:600 13px/1 var(--f-mono);letter-spacing:.04em;background:var(--sign-ink);color:#121416;border-radius:20px;padding:5px 10px;margin-right:6px;vertical-align:1px}
+.storyprev{display:block;max-width:180px;width:40%;border-radius:10px;border:1px solid var(--line);margin-top:4px}
 .tabs{display:flex;gap:2px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
 .tab{font:700 14px/1 var(--f-body);color:#dfe5e9;background:transparent;border:0;border-radius:6px;padding:10px 12px;cursor:pointer;white-space:nowrap}
@@ -326,7 +333,7 @@ footer{color:var(--muted);font-size:12px;line-height:1.5;border-top:1px solid va
       <span>Score <b id="hScore">0</b></span>
       <span class="streak" id="hStreakWrap">Streak <b id="hStreak">0</b></span>
       <span class="worth">Worth now <b id="hWorth">—</b></span>
-      <button type="button" class="quitbtn" id="quitBtn">Quit roll</button>
+      <button type="button" class="quitbtn soundbtn" id="soundBtn" aria-pressed="true">Sound on</button><button type="button" class="quitbtn" id="quitBtn">Quit roll</button>
     </div>
     <div class="timer" id="timer" hidden><i id="timerBar"></i></div>
     <div class="viewfinder" id="vf">
@@ -845,6 +852,7 @@ function frame(now){
       cam=lerpCam(r.camDet,full,e); lastCam=cam;
       const worth=zoomPoints(r,cam), hw=$('hWorth'); if(hw.textContent!==String(worth)) hw.textContent=worth;
       const rem=Math.max(0,DUR-t);
+      if(rem>0 && rem<=3){ const sec=Math.ceil(rem); if(r.lt!==sec){ r.lt=sec; FX.tick(); } }
       const bar=$('timerBar'); bar.style.transform=`scaleX(${rem/DUR})`; bar.classList.toggle('low',rem<5);
       if(t>=DUR) answer(null);
     } else if(mode==='pick'){
@@ -993,6 +1001,7 @@ function answer(id){
   else { game.streak=0; r.pts=0; }
   game.bestStreak=Math.max(game.bestStreak,game.streak);
   game.score+=r.pts;
+  FX.result(r.ok);
   const lg=rec.log[r.photo.id]||{seen:0,hit:0,best:null}; lg.seen++; if(r.ok){ lg.hit++; lg.best=lg.best==null? t : Math.min(lg.best,t); } rec.log[r.photo.id]=lg; saveRec();
   mode='reveal'; revealT=performance.now(); revealFrom=lastCam;
   $('timerBar').style.transform='scaleX(0)';
@@ -1030,11 +1039,13 @@ function endGame(){
     : game.type==='survival' ? `Long Lens · No Miss · ${DIFF[game.diff].label}\nSurvived ${game.hits} frame${game.hits===1?'':'s'} · ${game.score.toLocaleString()} pts\nCan you go further?`
     : `Long Lens · ${game.type==='classic'?'':GAMES[game.type].label+' · '}${DIFF[game.diff].label}\n${squares}  ${game.score.toLocaleString()} pts\nCan you beat it?`;
   RNG=Math.random;
+  const streak = game.daily && firstDaily ? bumpStreak(game.daily) : null;
   const boardKey=boardKeyOf(), roll={score:game.score,hits:game.hits,n:played.length,daily:!!game.daily};
   const hits=played.filter(r=>r.ok), avg=hits.length? hits.reduce((s,r)=>s+r.time,0)/hits.length : null;
   const isAir=game.type==='airline';
   const rows=played.map((r,i)=>`<tr><td class="num">${i+1}</td><td><b>${esc(isAir? r.answer : FAM[r.m.fam].short)}</b> · ${esc(r.photo.variant||r.m.name)} <span class="icao">${photoTagWords(r.photo)}</span></td><td>${FOCUS_LABEL[r.focus]}</td><td><span class="mark ${r.ok?'ok':'no'}">${r.ok?'✓ Identified':(r.pick==null?'– Time’s up':'✗ Missed')}</span></td><td class="num">${r.pick==null?'—':r.time.toFixed(1)+' s'}</td><td class="num">${r.pts.toLocaleString()}</td></tr>`).join('');
   $('endPanel').innerHTML=`
+    ${streak?`<p><span class="streakchip">🔥 ${streak}-day streak</span></p>`:''}
     <p class="eyebrow">${game.daily? 'Daily 5 · '+dayLabel(game.daily)+(firstDaily?'':' · practice run, not counted') : GAMES[game.type].end+' · '+GAMES[game.type].label+' · '+DIFF[game.diff].label}</p>
     <p class="bigscore">${game.score.toLocaleString()} ${pb?`<span class="pb">${game.daily?'Counted':'New best'}</span>`:''}</p>
     <div class="stats">
@@ -1043,7 +1054,8 @@ function endGame(){
       <div class="stat"><div class="l">Best streak</div><div class="v">${game.bestStreak}</div></div>
       <div class="stat"><div class="l">${game.daily?'Counted score today':'Previous best'}</div><div class="v">${game.daily? (rec.best[key]||0).toLocaleString() : (prev?prev.toLocaleString():'—')}</div></div>
     </div>
-    <div class="sharebox"><pre id="shareTxt">${esc(shareTxt)}</pre><button type="button" class="cta small" id="shareBtn">Copy result</button></div>
+    <div class="sharebox"><pre id="shareTxt">${esc(shareTxt)}</pre><button type="button" class="cta small" id="shareBtn">Copy result</button><button type="button" class="ghost" id="storyBtn">Story card</button></div>
+    <p class="note" id="storyMsg" hidden></p>
     <p class="note" id="boardSave">${board.db&&board.uid?'Saving to the leaderboard…':'Sign in with Google (top right) to put this roll on the leaderboard.'}</p>
     <div class="tablewrap"><table>
       <thead><tr><th class="num">#</th><th>${isAir?'Airline · aircraft':'Family · variant'}</th><th>Lens started on</th><th>Result</th><th class="num">Time</th><th class="num">Points</th></tr></thead>
@@ -1063,6 +1075,8 @@ function endGame(){
     catch(e){ const r=document.createRange(); r.selectNodeContents($('shareTxt')); const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); b.textContent='Selected · press Copy'; }
     setTimeout(()=>{ if(b.isConnected) b.textContent='Copy result'; },2500);
   });
+  $('storyBtn').addEventListener('click',()=>shareStory(played, shareTxt, streak));
+  if(game.type!=='survival' && played.length>=5 && played.every(r=>r.ok)){ confetti(); FX.fanfare(); }
   $('levelBtn').addEventListener('click',toStart);
   $('endLogBtn').addEventListener('click',openLog);
   $('endBoardBtn').addEventListener('click',()=>openBoard(boardKey));
@@ -1080,6 +1094,91 @@ $('quitBtn').addEventListener('click',()=>{
   if(game.daily){ ROUNDS= mode==='reveal'? game.i+1 : game.i; endGame(); return; }
   toStart();
 });
+/* ---------- sound, haptics, streak, confetti, story card ---------- */
+const FX=(()=>{
+  let ac=null, on=(rec.prefs.sound!==false);
+  const ctxA=()=>{ if(!ac){ try{ ac=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return null; } } if(ac.state==='suspended') ac.resume(); return ac; };
+  function tone(f,dur,type,gain,when,slide){ const a=on&&ctxA(); if(!a) return; const t=a.currentTime+(when||0); const o=a.createOscillator(), g=a.createGain();
+    o.type=type||'sine'; o.frequency.setValueAtTime(f,t); if(slide) o.frequency.exponentialRampToValueAtTime(slide,t+dur);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(gain||0.1,t+0.01); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+dur+0.03); }
+  function click(gain,when){ const a=on&&ctxA(); if(!a) return; const t=a.currentTime+(when||0), len=Math.floor(a.sampleRate*0.05);
+    const b=a.createBuffer(1,len,a.sampleRate), d=b.getChannelData(0); for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/len,4);
+    const src=a.createBufferSource(); src.buffer=b; const hp=a.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=2500; const g=a.createGain(); g.gain.value=gain;
+    src.connect(hp); hp.connect(g); g.connect(a.destination); src.start(t); }
+  const buzz=pat=>{ try{ if(on && navigator.vibrate) navigator.vibrate(pat); }catch(e){} };
+  return {
+    get on(){ return on; },
+    toggle(){ on=!on; rec.prefs.sound=on; saveRec(); if(on) tone(880,.08,'sine',.08); return on; },
+    result(ok){ if(ok){ click(.5); click(.35,.07); tone(1046,.18,'triangle',.11,.06); tone(1568,.3,'triangle',.09,.13); buzz(30); }
+                else { tone(196,.3,'sawtooth',.05,0,130); buzz([70,50,70]); } },
+    tick(){ tone(1320,.05,'square',.035); buzz(12); },
+    fanfare(){ [523,659,784,1046].forEach((f,i)=>tone(f,.26,'triangle',.09,.15+i*.09)); buzz([40,30,40,30,90]); }
+  };
+})();
+function syncSoundBtn(){ const b=$('soundBtn'); b.textContent=FX.on?'Sound on':'Sound off'; b.setAttribute('aria-pressed',String(FX.on)); }
+$('soundBtn').addEventListener('click',()=>{ FX.toggle(); syncSoundBtn(); }); syncSoundBtn();
+
+const dayBefore = k => { const d=new Date(k+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()-1); return d.toISOString().slice(0,10); };
+function liveStreak(){ const s=rec.prefs.dstreak; if(!s) return 0; const k=dayKey(); return (s.last===k||s.last===dayBefore(k))? s.n : 0; }
+function bumpStreak(day){ const s=rec.prefs.dstreak||{last:'',n:0};
+  const n = s.last===day ? s.n : (s.last===dayBefore(day) ? s.n+1 : 1);
+  rec.prefs.dstreak={last:day,n}; saveRec(); return n; }
+
+function confetti(){
+  if(reduced) return;
+  const c=document.createElement('canvas'); c.className='fxcanvas'; c.setAttribute('aria-hidden','true'); document.body.appendChild(c);
+  const dpr=Math.min(2,window.devicePixelRatio||1), w=innerWidth, h=innerHeight; c.width=w*dpr; c.height=h*dpr; const x=c.getContext('2d'); x.scale(dpr,dpr);
+  const cols=['#f5c000','#ffffff','#78d28c','#ffd84d','#9fd3ff'];
+  const ps=Array.from({length:140},()=>({x:w/2+(Math.random()-.5)*w*.3, y:h*.35, vx:(Math.random()-.5)*14, vy:-Math.random()*14-4, r:Math.random()*6+4, a:Math.random()*6, va:(Math.random()-.5)*.4, c:cols[Math.floor(Math.random()*cols.length)]}));
+  const t0=performance.now();
+  (function step(now){ const t=(now-t0)/1000; x.clearRect(0,0,w,h);
+    ps.forEach(p=>{ p.vy+=.45; p.vx*=.99; p.x+=p.vx; p.y+=p.vy; p.a+=p.va; x.save(); x.globalAlpha=Math.max(0,1-t/2.6); x.translate(p.x,p.y); x.rotate(p.a); x.fillStyle=p.c; x.fillRect(-p.r/2,-p.r/4,p.r,p.r/2); x.restore(); });
+    if(t<2.6) requestAnimationFrame(step); else c.remove(); })(t0);
+}
+
+const MARK_PATH='M0,-19 C2,-19 3,-16 3,-12 L3,-4 L19,4 L19,7.5 L3,3.5 L3,11 L8.5,15 L8.5,17.5 L0,15.5 L-8.5,17.5 L-8.5,15 L-3,11 L-3,3.5 L-19,7.5 L-19,4 L-3,-4 L-3,-12 C-3,-16 -2,-19 0,-19 Z';
+function drawMark(x,cx,cy,size){ x.save(); x.translate(cx-size/2,cy-size/2); x.scale(size/120,size/120);
+  x.fillStyle='#f5c000'; x.beginPath(); x.roundRect? x.roundRect(0,0,120,120,28) : x.rect(0,0,120,120); x.fill();
+  x.strokeStyle='#121416'; x.lineWidth=7; x.beginPath(); x.arc(60,60,38,0,Math.PI*2); x.stroke();
+  x.lineWidth=4; x.lineCap='round'; [[60,27,60,34],[60,86,60,93],[27,60,34,60],[86,60,93,60]].forEach(l=>{ x.beginPath(); x.moveTo(l[0],l[1]); x.lineTo(l[2],l[3]); x.stroke(); });
+  x.translate(60,60); x.rotate(Math.PI/4); x.scale(.98,.98); x.fillStyle='#121416'; x.fill(new Path2D(MARK_PATH)); x.restore(); }
+async function storyCanvas(played, streak){
+  try{ await document.fonts.load('900 100px "Big Shoulders Display"'); }catch(e){}
+  const c=document.createElement('canvas'); c.width=1080; c.height=1920; const x=c.getContext('2d');
+  x.fillStyle='#121416'; x.fillRect(0,0,1080,1920);
+  // Only the owner's or spotters' own photos go on a shared image, never the uncredited shared ones.
+  const own=played.filter(r=>!r.photo.shared); const best=own.filter(r=>r.ok).slice(-1)[0]||own[own.length-1];
+  if(best && best.photo && best.photo.img && best.photo.img.naturalWidth){
+    const p=best.photo, f=photoFull(p); let sw=Math.min(p.w, f.w*1.05), sh=sw*0.75; if(sh>p.h){ sh=p.h; sw=sh/0.75; } const sx=clamp(f.cx-sw/2,0,p.w-sw), sy=clamp(f.cy-sh/2,0,p.h-sh);
+    try{ x.save(); x.beginPath(); x.roundRect? x.roundRect(60,300,960,720,28) : x.rect(60,300,960,720); x.clip(); x.drawImage(p.img,sx,sy,sw,sh,60,300,960,720); x.restore(); }catch(e){}
+    x.strokeStyle='#f5c000'; x.lineWidth=8; [[84,324,1,1],[996,324,-1,1],[84,996,1,-1],[996,996,-1,-1]].forEach(([px,py,dx,dy])=>{ x.beginPath(); x.moveTo(px+dx*70,py); x.lineTo(px,py); x.lineTo(px,py+dy*70); x.stroke(); });
+  }
+  drawMark(x,150,170,110);
+  x.fillStyle='#f5c000'; x.font='900 92px "Big Shoulders Display", Impact, sans-serif'; x.textBaseline='middle'; x.fillText('LONG LENS',225,174);
+  x.textAlign='center'; x.fillStyle='#c9ced3'; x.font='500 36px "IBM Plex Mono", monospace';
+  const title= game.daily? 'DAILY 5 · '+dayLabel(game.daily).toUpperCase() : (game.type==='classic'?'':GAMES[game.type].label.toUpperCase()+' · ')+DIFF[game.diff].label.toUpperCase();
+  x.fillText(title,540,1100);
+  x.fillStyle='#ffffff'; x.font='900 230px "Big Shoulders Display", Impact, sans-serif'; x.fillText(game.score.toLocaleString(),540,1260);
+  x.fillStyle='#f5c000'; x.font='800 54px "Big Shoulders Display", Impact, sans-serif'; x.fillText('POINTS',540,1390);
+  const sq=played.slice(0,10), size=sq.length>6?72:96, gap=18, tw=sq.length*size+(sq.length-1)*gap; let sx0=540-tw/2;
+  sq.forEach(r=>{ x.fillStyle=r.ok?'#3fae5f':'#d9534a'; x.beginPath(); x.roundRect? x.roundRect(sx0,1460,size,size,14):x.rect(sx0,1460,size,size); x.fill(); sx0+=size+gap; });
+  x.fillStyle='#ffffff'; x.font='600 40px "Atkinson Hyperlegible", sans-serif';
+  x.fillText((game.type==='survival'? 'Survived '+game.hits+' frames' : game.hits+'/'+played.length+' identified')+(streak?'  ·  🔥 '+streak+'-day streak':''),540,1640);
+  x.fillStyle='#f5c000'; x.font='500 40px "IBM Plex Mono", monospace'; x.fillText('Can you beat it? long-lens-game.web.app',540,1760);
+  return c;
+}
+async function shareStory(played, text, streak){
+  const msg=$('storyMsg'); msg.hidden=false; msg.textContent='Making your story card…';
+  try{
+    const c=await storyCanvas(played, streak);
+    const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+    const file=new File([blob],'long-lens-score.png',{type:'image/png'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){ await navigator.share({files:[file], text}); msg.textContent='Shared. Pick Instagram › Story to post it.'; return; }
+    const url=URL.createObjectURL(blob);
+    msg.innerHTML='Your story card is ready. <a href="'+url+'" download="long-lens-score.png">Save the image</a>, then post it to your Instagram Story.<img class="storyprev" alt="Story card preview" src="'+url+'">';
+  }catch(e){ if(e && e.name==='AbortError'){ msg.hidden=true; return; } msg.textContent='Could not make the story card on this device.'; }
+}
 /* ---------- logbook ---------- */
 let logReturn='startPanel';
 function renderLog(){
@@ -1120,6 +1219,7 @@ function renderDaily(){
   const k=dayKey(), done=rec.best['daily-'+k];
   $('dailyDate').textContent=dayLabel(k);
   $('dailyBtn').innerHTML= done==null ? 'Play today’s 5 <span class="arrow">→</span>' : 'Practice today’s 5 <span class="arrow">→</span>';
+  const st=liveStreak(); $('dailyDate').innerHTML=(st?`<span class="streakchip">🔥 ${st}-day streak</span> `:'')+dayLabel(k);
   $('dailyNote').textContent= done==null ? 'Spotter level, 6 choices. Only your first try counts. New frames at midnight Japan time.'
     : `You scored ${Number(done).toLocaleString()} today. Replays are practice only. New frames at midnight Japan time.`;
 }
