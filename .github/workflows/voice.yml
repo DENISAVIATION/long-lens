@@ -1,0 +1,21 @@
+# Temporary: makes voice-over clips for the Long Lens Reel with the open-source Kokoro TTS model.
+name: Voice clips
+on:
+  push:
+    branches: [voice-tmp]
+jobs:
+  tts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq espeak-ng
+      - run: pip install -q torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install -q kokoro==0.9.4 soundfile==0.12.1
+      - run: python voice/tts.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voice
+          path: out/*.wav
