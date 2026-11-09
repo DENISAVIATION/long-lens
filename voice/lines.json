@@ -1,14 +1,8 @@
 [
- ["hook", "Name this plane."],
- ["pull1", "The lens is pulling back..."],
- ["pull2", "and every second, it's worth less."],
- ["yak", "Yakovlev Yak-forty! Rare one."],
- ["speed", "Speed round!"],
- ["s1", "Seven three seven."],
- ["s2", "A three thirty."],
- ["s3", "Seven eight seven."],
- ["s4", "Seven forty-seven!"],
- ["daily", "A new Daily Five. Every single day."],
- ["modes", "Pick your mode."],
- ["end", "Long Lens. Play free. Link in bio."]
+ ["l1", "Five forty-two a.m. The fence by runway thirty-four R."],
+ ["l2", "Battery... twelve percent. One shot left."],
+ ["l3", "And then, out of the fog... he appears."],
+ ["l4", "This is all I can see. What plane is it?"],
+ ["l5", "I know the answer. Do you?"],
+ ["l6", "Drop your guess in the comments. Part two is coming."]
 ]
