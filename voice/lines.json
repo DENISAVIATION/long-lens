@@ -1,8 +1,292 @@
 [
- ["l1", "Five forty-two a.m. The fence by runway thirty-four R."],
- ["l2", "Battery... twelve percent. One shot left."],
- ["l3", "And then, out of the fog... he appears."],
- ["l4", "This is all I can see. What plane is it?"],
- ["l5", "I know the answer. Do you?"],
- ["l6", "Drop your guess in the comments. Part two is coming."]
+[
+"e1_01",
+"am_liam",
+"Five forty-two a.m. The fence by runway thirty-four R."
+],
+[
+"e1_02",
+"am_liam",
+"Battery: twelve percent. One shot left."
+],
+[
+"e1_03",
+"am_liam",
+"And then, out of the fog... he appears."
+],
+[
+"e1_04",
+"am_liam",
+"All I can see is an engine. What is it?"
+],
+[
+"e1_05",
+"am_fenrir",
+"Still guessing, rookie?"
+],
+[
+"e1_06",
+"am_fenrir",
+"A real spotter knows it from one detail."
+],
+[
+"e1_07",
+"am_liam",
+"And just like that... it was gone."
+],
+[
+"e1_08",
+"am_liam",
+"I didn't get the shot. I didn't even know what it was."
+],
+[
+"e1_09",
+"am_fenrir",
+"Train your eye. Or stay a rookie."
+],
+[
+"e1_10",
+"am_liam",
+"That night, I found an app called Long Lens."
+],
+[
+"e2_01",
+"am_liam",
+"One detail. The lens pulls back. Name the plane before the zoom runs out."
+],
+[
+"e2_02",
+"am_liam",
+"First frame. A nose. Easy... right?"
+],
+[
+"e2_03",
+"am_liam",
+"Wrong. Okay... not that easy."
+],
+[
+"e2_04",
+"am_liam",
+"Look at the details. Every plane has a tell."
+],
+[
+"e2_05",
+"am_liam",
+"And after every frame, the app shows you what to look for."
+],
+[
+"e2_06",
+"am_liam",
+"Pointed nose. Flat-bottomed engines. Seven-thirty-seven!"
+],
+[
+"e2_07",
+"am_liam",
+"Correct! And the earlier you answer, the more points you get."
+],
+[
+"e2_08",
+"am_liam",
+"Okay. This is fun."
+],
+[
+"e2_09",
+"am_liam",
+"And every day there's a Daily Five. Same five frames for everyone."
+],
+[
+"e2_10",
+"am_liam",
+"Day one. Streak: one."
+],
+[
+"e3_02",
+"am_liam",
+"Seven days. Seven Daily Fives. Streak: seven."
+],
+[
+"e3_03",
+"am_liam",
+"My eye is getting faster."
+],
+[
+"e3_04",
+"am_liam",
+"Two big engines. Long body. A-three-thirty. Easy."
+],
+[
+"e3_05",
+"am_liam",
+"Then I checked the leaderboard."
+],
+[
+"e3_06",
+"am_liam",
+"Number one... Kai."
+],
+[
+"e3_07",
+"am_fenrir",
+"Seven days? Cute."
+],
+[
+"e3_08",
+"am_fenrir",
+"Let's settle it. No Miss mode."
+],
+[
+"e3_09",
+"am_liam",
+"One wrong answer and it's over."
+],
+[
+"e3_10",
+"am_fenrir",
+"Loser buys the coffee."
+],
+[
+"e4_01",
+"am_liam",
+"No Miss. Endless frames. One miss and you're out."
+],
+[
+"e4_02",
+"am_fenrir",
+"Seven-thirty-seven."
+],
+[
+"e4_03",
+"am_liam",
+"A-three-thirty."
+],
+[
+"e4_04",
+"am_fenrir",
+"Seven forty-seven. Queen of the skies."
+],
+[
+"e4_05",
+"am_liam",
+"Seven-eight-seven."
+],
+[
+"e4_06",
+"am_liam",
+"Ten frames. Fifteen. Twenty..."
+],
+[
+"e4_07",
+"am_liam",
+"Then... this."
+],
+[
+"e4_08",
+"am_fenrir",
+"What... is that?"
+],
+[
+"e4_09",
+"am_liam",
+"Three engines. Tiny. I've seen it in the game..."
+],
+[
+"e4_10",
+"am_liam",
+"Five seconds left."
+],
+[
+"e5_01",
+"am_liam",
+"Yakovlev Yak-forty!"
+],
+[
+"e5_02",
+"am_fenrir",
+"No way."
+],
+[
+"e5_03",
+"am_liam",
+"Correct. Kai missed it. I won No Miss."
+],
+[
+"e5_04",
+"am_fenrir",
+"Okay, rookie. Not bad. Coffee is on me."
+],
+[
+"e5_05",
+"am_liam",
+"But I wanted more. I wanted my own photo in the game."
+],
+[
+"e5_06",
+"am_liam",
+"So I posted my best shot on the Spotters' Wall."
+],
+[
+"e5_07",
+"am_liam",
+"If the owner accepts it, everyone plays it."
+],
+[
+"e5_09",
+"am_liam",
+"Accepted."
+],
+[
+"e5_10",
+"am_liam",
+"My photo. In the game. For everyone."
+],
+[
+"e6_01",
+"am_liam",
+"Five forty-two a.m. Same fence. Runway thirty-four R."
+],
+[
+"e6_02",
+"am_liam",
+"Battery twelve percent. One shot left. Again."
+],
+[
+"e6_03",
+"am_fenrir",
+"Here it comes. Let's see what you learned."
+],
+[
+"e6_04",
+"am_liam",
+"One engine. That's all I need."
+],
+[
+"e6_05",
+"am_liam",
+"Saw-tooth edges on the engine. Boeing seven-eight-seven."
+],
+[
+"e6_06",
+"am_liam",
+"Click."
+],
+[
+"e6_07",
+"am_fenrir",
+"Not bad... spotter."
+],
+[
+"e6_08",
+"am_liam",
+"It wasn't luck. It was training."
+],
+[
+"e6_09",
+"am_liam",
+"One detail. Name the plane before the zoom runs out."
+],
+[
+"e6_10",
+"am_liam",
+"Your turn."
+]
 ]
